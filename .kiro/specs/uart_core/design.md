@@ -1,4 +1,4 @@
-# Design Document
+﻿# Design Document
 
 ## Overview
 
@@ -34,6 +34,9 @@ module uart_ctrl(
   input  wire        rx_valid,
   input  wire [7:0]  rx_data
 );
+
+reg [3:0] isr;   // UART_ISR bits 3:0
+reg [7:0] rdr;   // UART_RDR bits 7:0
 ```
 
 **Register map**
@@ -59,7 +62,7 @@ wire sel_rdr = (addr == RDR_ADDR);
 
 ```systemverilog
 always @(*) begin
-  if (sel_isr)      rdata = isr;
+  if (sel_isr)      rdata = {28'b0, isr};
   else if (sel_rdr) rdata = {24'b0, rdr};
   else              rdata = 32'b0;
 end
@@ -71,21 +74,24 @@ end
 // W1C clear applies only to writable bits 0,2,3 (mask 4'b1101); bit 1 (RX_READY) excluded.
 wire [3:0] clear_mask = (we & sel_isr) ? (wdata[3:0] & 4'b1101) : 4'b0000;
 
-// Hardware set: bits 0,2,3 from hw_set; bit 1 (RX_READY) set by rx_valid.
-// OVERRUN_ERR (bit 3) also set on overrun (rx_valid while RX_READY set and RDR not being read).
+// RDR read clears RX_READY (bit 1): rdr_clear_mask has bit 1 = rdr_read.
 wire rdr_read  = re & sel_rdr;
-wire overrun   = rx_valid & isr[1] & ~rdr_read;   // see Design Decision (a)/(b)
-wire [3:0] hwset_mask = { hw_set[3] | overrun, rx_valid, hw_set[2], hw_set[0] };
+wire [3:0] rdr_clear_mask = {2'b00, rdr_read, 1'b0};
 
-// hw_set wins over W1C clear: OR applied after the clear (Requirement 1.7).
-wire [3:0] isr_next = (isr & ~clear_mask) | hwset_mask;
+// Hardware set: bit 0 TX_DONE, bit 1 RX_READY (rx_valid), bit 2 PARITY_ERR, bit 3 OVERRUN_ERR.
+// OVERRUN_ERR also set on overrun (rx_valid while RX_READY set and RDR not being read).
+wire overrun   = rx_valid & isr[1] & ~rdr_read;   // see Design Decision (a)/(b)
+wire [3:0] hwset_mask = { hw_set[3] | overrun, hw_set[2], rx_valid, hw_set[0] };
+
+// hw_set wins over W1C clear and RDR-read clear: OR applied after both clears (Requirement 1.7).
+wire [3:0] isr_next = (isr & ~clear_mask & ~rdr_clear_mask) | hwset_mask;
 ```
 
 **UART_RDR next-state logic**
 
 ```systemverilog
-// rx_valid loads new rx_data (Decision b: overwrites unread data).
-wire [7:0] rdr_next = rx_valid ? rx_data : rdr;
+// rx_valid loads new rx_data; RDR read clears to 0. Read + rx_valid in same cycle: rx_valid wins.
+wire [7:0] rdr_next = rx_valid ? rx_data : (rdr_read ? 8'd0 : rdr);
 ```
 
 **Clocked update + reset** (Requirement 1.5 zeroes both on `rst_n` low):
@@ -93,7 +99,7 @@ wire [7:0] rdr_next = rx_valid ? rx_data : rdr;
 ```systemverilog
 always @(posedge clk or negedge rst_n) begin
   if (!rst_n) begin
-    isr <= 32'd0;
+    isr <= 4'd0;
     rdr <= 8'd0;
   end else begin
     isr <= isr_next;
@@ -104,27 +110,27 @@ end
 
 **Behavioral consequences of the logic above:**
 - Write 1 to a W1C bit clears it; write 0 leaves it unchanged (Requirements 1.2, 1.4) — `clear_mask` only carries 1s from `wdata` on writable bits.
-- Writes to bit 1 are ignored (Requirement 1.8) — `clear_mask[1]==0` and RX_READY is driven only by `rx_valid`/`rdr_read`.
-- `hw_set` priority over W1C clear (Requirement 1.7, Decision c) — `hwset_mask` is ORed after `clear_mask` is subtracted.
-- `rx_valid` sets RX_READY and loads RDR (Requirement 1.6) — `hwset_mask[1]=rx_valid`, `rdr_next=rx_data`.
-- Read of RDR returns old value then clears RDR + RX_READY at the edge (Requirement 2.1) — `rdata` is combinational (old `rdr`); `rdr_read` does not itself clear `rdr` (RDR only changes on `rx_valid`), and clears RX_READY via `isr_next` bit 1.
+- Writes to bit 1 are ignored (Requirement 1.8) — `clear_mask[1]==0`; RX_READY is driven only by `rx_valid` (set) and `rdr_read` (clear via `rdr_clear_mask`), with `hwset_mask` ORed last.
+- `hw_set` priority over W1C clear and RDR-read clear (Requirement 1.7, Decision c) — `hwset_mask` is ORed after `clear_mask` and `rdr_clear_mask` are subtracted.
+- `rx_valid` sets RX_READY and loads RDR (Requirement 1.6) — `hwset_mask[1]=rx_valid`, `rdr_next=rx_data` when `rx_valid`.
+- Read of RDR returns old value then clears RDR and RX_READY at the edge (Requirement 2.1) — `rdata` is combinational (old `rdr`); `rdr_next` zeroes RDR when `rdr_read` and no `rx_valid`; `rdr_clear_mask` zeroes RX_READY via `isr_next`. If `rx_valid` coincides with the read, `hwset_mask[1]` re-sets RX_READY so it stays set for the new data.
 
 ### Design decisions resolved in the RTL
 
-**(a) `rx_valid` and a UART_RDR read in the same cycle** — the read returns the *old* `rdr` value (combinational `rdata`), and the new `rx_data` is loaded at the edge (`rdr_next = rx_data`). RX_READY stays set because `hwset_mask[1] = rx_valid` overrides the `rdr_read` clear. Overrun is **not** flagged in this cycle (`overrun = rx_valid & isr[1] & ~rdr_read == 0`) because the old data was successfully read, not lost.
+**(a) `rx_valid` and a UART_RDR read in the same cycle** — the read returns the *old* `rdr` value (combinational `rdata`), and the new `rx_data` is loaded at the edge (`rdr_next = rx_data` because `rx_valid` takes priority over `rdr_read` in the ternary). RDR does not clear to 0 because `rx_valid` wins. RX_READY stays set because `rdr_clear_mask` clears bit 1 but `hwset_mask[1] = rx_valid` re-sets it via the OR. Overrun is **not** flagged (`overrun = rx_valid & isr[1] & ~rdr_read = 1 & 1 & 0 = 0`) because the old data was successfully read, not lost.
 
 **(b) `rx_valid` while RX_READY already set (and RDR not being read)** — the new `rx_data` overwrites the unread old data and `OVERRUN_ERR` (bit 3) is set (`overrun = rx_valid & isr[1] & ~rdr_read == 1`). This is the data-loss overrun condition.
 
-**(c) `hw_set` priority over W1C clear** — confirmed: `isr_next = (isr & ~clear_mask) | hwset_mask`, so a simultaneous set and clear leaves the bit set.
+**(c) `hw_set` priority over W1C clear** — confirmed: `isr_next = (isr & ~clear_mask & ~rdr_clear_mask) | hwset_mask`, so a simultaneous set and clear (or RDR-read clear) leaves the bit set.
 
 ```mermaid
 block-beta
   Bus["Bus_Interface we/re/addr/wdata/rdata"]
   HW["hw_set[3:0], rx_valid, rx_data[7:0]"]
   Decode["Address decode\nsel_isr / sel_rdr"]
-  ISRL["UART_ISR logic\nclear_mask + hwset_mask"]
-  RDRL["UART_RDR logic\nrx_valid load / rdr_read"]
-  ISR["reg isr[31:0]"]
+  ISRL["UART_ISR logic\nclear_mask + rdr_clear_mask + hwset_mask"]
+  RDRL["UART_RDR logic\nrx_valid load / rdr_read clear"]
+  ISR["reg isr[3:0]"]
   RDR["reg rdr[7:0]"]
   Bus --> Decode
   HW --> ISRL
