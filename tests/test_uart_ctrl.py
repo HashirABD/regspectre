@@ -247,3 +247,69 @@ async def test_rdr_read_to_clear(dut):
     # Second read: should return 0 (RDR cleared)
     val2 = await read_rdr(dut)
     assert val2 == 0, f"Second RDR read should return 0, got {val2:#x}"
+
+@cocotb.test()
+async def test_overrun_sets_overrun_err(dut):
+    """Overrun: rx_valid while RX_READY set (no read) sets OVERRUN_ERR and loads new data."""
+    await init(dut)
+
+    # First load: RDR = 0x42, RX_READY set
+    dut.rx_valid.value = 1
+    dut.rx_data.value = 0x42
+    await RisingEdge(dut.clk)
+    dut.rx_valid.value = 0
+    await RisingEdge(dut.clk)
+
+    # Second load without reading RDR: overwrites old data, sets OVERRUN_ERR
+    dut.rx_valid.value = 1
+    dut.rx_data.value = 0x99
+    await RisingEdge(dut.clk)
+    dut.rx_valid.value = 0
+    await RisingEdge(dut.clk)
+
+    # OVERRUN_ERR (bit 3) should be set
+    isr_val = await read_reg(dut, ISR_ADDR)
+    assert isr_val & 0x8 == 0x8, f"OVERRUN_ERR should be set, ISR={isr_val & 0xF:#06b}"
+
+    # RDR should hold the new data
+    rdr_val = await read_reg(dut, RDR_ADDR)
+    assert rdr_val & 0xFF == 0x99, f"RDR should be 0x99, got {rdr_val & 0xFF:#x}"
+
+
+@cocotb.test()
+async def test_rx_valid_with_rdr_read_same_cycle(dut):
+    """Same-cycle rx_valid + RDR read: returns old value, loads new data, RX_READY stays set, no overrun."""
+    await init(dut)
+
+    # Load RDR with 0x3C
+    dut.rx_valid.value = 1
+    dut.rx_data.value = 0x3C
+    await RisingEdge(dut.clk)
+    dut.rx_valid.value = 0
+    await RisingEdge(dut.clk)
+
+    # Same cycle: rx_valid with new data + RDR read
+    dut.rx_valid.value = 1
+    dut.rx_data.value = 0x77
+    dut.re.value = 1
+    dut.addr.value = RDR_ADDR
+    await Timer(1, "ns")  # combinational settles
+    read_val = int(dut.rdata.value) & 0xFF
+    await RisingEdge(dut.clk)  # side effects commit
+    dut.rx_valid.value = 0
+    dut.re.value = 0
+    await Timer(1, "ns")
+
+    # Read returned the old value
+    assert read_val == 0x3C, f"Read should return old value 0x3C, got {read_val:#x}"
+
+    # RDR holds the new data
+    rdr_val = await read_reg(dut, RDR_ADDR)
+    assert rdr_val & 0xFF == 0x77, f"RDR should be 0x77, got {rdr_val & 0xFF:#x}"
+
+    # RX_READY still set
+    isr_val = await read_reg(dut, ISR_ADDR)
+    assert isr_val & 0x2 == 0x2, f"RX_READY should still be set, ISR={isr_val & 0xF:#06b}"
+
+    # OVERRUN_ERR not set
+    assert isr_val & 0x8 == 0, f"OVERRUN_ERR should not be set, ISR={isr_val & 0xF:#06b}"
