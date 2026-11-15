@@ -36,8 +36,7 @@ The uart_core feature adds the first RegSpectre co-verification core for a UART 
 1. THE UART_Core SHALL expose UART_ISR (bits 0 to 3) at address 0x40001004 and UART_RDR (bits 7 to 0) at address 0x40001008 through the Bus_Interface.
 2. WHEN a one is written to a W1C bit (bit 0 TX_DONE, bit 2 PARITY_ERR, or bit 3 OVERRUN_ERR) of UART_ISR, THE UART_Core SHALL clear that bit.
 3. WHEN the hw_set input for an interrupt bit is asserted, THE UART_Core SHALL set that interrupt bit.
-4. WHEN UART_RDR is read, THE UART_Core SHALL return the current value of bits 7 to 0 and clear bits 7 to 0.
-5. IF firmware writes a zero to a W1C bit of UART_ISR, or writes any value to the read-only RX_READY bit (bit 1), THEN THE UART_Core SHALL leave the written bit unchanged.
+4. IF firmware writes a zero to a W1C bit of UART_ISR, THEN THE UART_Core SHALL leave that bit unchanged.
 
 ### Requirement 2: UART_RDR read-to-clear behavior
 
@@ -58,6 +57,8 @@ The uart_core feature adds the first RegSpectre co-verification core for a UART 
 1. THE Engine SHALL drive the UART_Core through cocotb on Icarus Verilog by issuing Bus_Interface transactions, where each transaction drives the we, re, addr, and wdata signals and captures rdata.
 2. THE Engine SHALL replay reads, writes, and Read_Modify_Writes that a C firmware driver performs, issuing them in the same sequence the driver would issue them.
 3. WHEN the Engine performs a Read_Modify_Write, THE Engine SHALL read the target register, compute a new value by setting or clearing the specified bits in the read value, and write the computed value back to the same register address.
+4. THE Engine SHALL parse a C firmware snippet using a small subset of C consisting of register assignment, compound assignment with |= or &=, register reads, and simple handler functions, and convert each parsed operation to Bus_Interface transactions.
+5. THE Engine SHALL NOT perform full C compilation of the firmware snippet.
 
 ### Requirement 4: Intended state versus actual state
 
@@ -75,7 +76,9 @@ The uart_core feature adds the first RegSpectre co-verification core for a UART 
 
 #### Acceptance Criteria
 
-1. WHEN a Read_Modify_Write clears a W1C bit whose Intended_State is set, THE Engine SHALL emit a Violation_Report for each such bit.
+1. WHEN a Read_Modify_Write on UART_ISR clears a W1C bit that was pending and not intended to be cleared, THE Engine SHALL emit a Violation_Report containing that bit index, Intended_State 1, Actual_State 0, and the clock cycle.
+2. WHEN a Direct_Assignment write clears only its target bit, THE Engine SHALL NOT emit a Violation_Report.
+3. THE Engine SHALL include the C source line of the Read_Modify_Write in the Violation_Report.
 
 ### Requirement 6: Read-to-clear double read detection
 
@@ -102,15 +105,16 @@ The uart_core feature adds the first RegSpectre co-verification core for a UART 
 
 #### Acceptance Criteria
 
-1. WHEN the Engine processes the same input on two or more consecutive runs, THE Engine SHALL produce identical violation decisions on every run.
+1. WHEN the Engine processes the same input, defined as identical RTL file, identical C snippet, and identical hw_set timing seed, on two or more consecutive runs, THE Engine SHALL produce identical violation decisions on every run.
 2. THE Engine SHALL decide whether a violation exists and classify register bits using only deterministic Python rules, without invoking any LLM for either task.
 
 ### Requirement 9: Property tests for random hardware timing
 
-**User Story:** As a verification engineer, I want Hypothesis to inject random interrupt timing, so that Direct_Assignment writes are proven safe against neighbor bit wipeout.
+**User Story:** As a verification engineer, I want Hypothesis to inject random interrupt timing, so that Direct_Assignment writes are tested against neighbor bit wipeout.
 
 #### Acceptance Criteria
 
 1. WHEN the property-based test executes with Hypothesis-generated random hw_set timing applied to the UART_ISR interrupt bits across clock cycles, THE Engine SHALL verify that a Direct_Assignment write of the form UART_ISR = (1U << BIT) does not clear (transition from set to cleared) any W1C bit of UART_ISR other than bit BIT.
 2. WHERE Hypothesis drives the property-based test, THE Engine SHALL generate at least 100 distinct random hw_set timing scenarios, each scenario independently asserting or deasserting each UART_ISR interrupt bit on randomly chosen clock cycles.
 3. IF a Direct_Assignment write clears a W1C bit of UART_ISR other than the targeted bit BIT, THEN THE Engine SHALL fail the test with an indication that a neighbor W1C bit was wiped out by the write.
+4. THE Engine SHALL NOT treat passing Hypothesis randomized tests as proof of correctness of the UART_Core.
