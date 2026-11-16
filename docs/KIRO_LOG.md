@@ -100,3 +100,11 @@ Known gap, two separate invocations of the same handler name would be grouped to
 Verified by hand in Ubuntu, pytest 75 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
 Not yet proven, the detector has not seen reads from the real RTL. That comes in Task 8.
 Credits used, about 3.33 for this run. Code commit de77dfc.
+
+## Task 7, engine/report.py JSON writer (summary)
+Prompt summary: create engine/report.py that turns a list of Violation_Report objects into the JSON format from design.md, deterministic output, standard library only, add report tests, run pytest once. Kiro was told to pick the simplest reading where the design is unclear and to say which rule it chose.
+Result: Kiro added report_to_dict and reports_to_json. Top level is a JSON array of violation objects with no wrapper and no summary count. Key order is register, bit, intended, actual, cycle, c_line. Violations keep input order. c_line is omitted when None, never written as null. Output uses indent 2 and no trailing newline. Wrong types raise TypeError (bool is rejected), out of range values raise ValueError. 12 new report tests added. Kiro reported 87 passed. All writes landed on the first try.
+Choices made by Kiro, not defined by the design, the top level array with no wrapper, no summary count, input order, and the omitted c_line. Kiro read the JSON schema block of design.md (lines 259 to 287) in full, but I have not checked the exact match myself.
+Verified by hand in Ubuntu, pytest 87 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only report.py and test_engine_unit.py.
+Not yet proven, the report has not seen violations from the real RTL. The UI spec depends on this format, so it must be final before the UI spec is written.
+Credits used, about 3.58 for this run. Code commit d3fdb18.
