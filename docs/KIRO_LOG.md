@@ -69,3 +69,9 @@ Result. Kiro wrote engine/c_parser.py (12195 bytes) and 24 parser tests next to 
 Prompt summary, fix the token kind case in _tokenize only (m.lastgroup.upper()), then run pytest tests/test_engine_unit.py once and report the counts.
 
 Result. One line changed in engine/c_parser.py. 37 of 37 tests pass (13 regmap and 24 parser). Checked again by hand, 37 pytest pass, 17 of 17 cocotb pass (uart_ctrl and bus_driver) and 1 of 1 smoke pass. Lesson, run make clean when switching TARGET, otherwise a stale sim_build runs the wrong toplevel. Credits used for the fix, 1.81.
+
+## 2026-11-16, Task 5 intended state model
+
+Prompt summary, run task 5 of tasks.md only, read the intended state section of design.md, regmap.py and the Operation dataclass, create engine/intended_model.py with intended_state(op, pre) (bits outside the named mask keep pre, W1C bits inside the mask follow write semantics, handle WRITE, RMW SET, RMW CLR and READ), add intended model unit tests to tests/test_engine_unit.py, Kiro runs pytest once and reports the counts, no BOM, LF line endings, stop after the step.
+
+Result. Kiro wrote engine/intended_model.py (2056 bytes) and 13 intended tests next to the 37 existing tests. Kiro's first write was cut off after the import line, Kiro noticed that the tests were missing, appended them again and ran pytest once. 50 of 50 pass, checked again by hand, 50 pytest, 17 of 17 cocotb and 1 of 1 smoke. The design does not define the rule for READ operations, so Kiro chose that a read of UART_RDR clears its read to clear bits in the intended state, otherwise every single RDR read would look like a violation. The hero bug case is covered, pre 0b1001 with UART_ISR |= bit 0 gives intended 0b1000 while the real RTL gives 0b0000. Credits used for this run, 3.33.

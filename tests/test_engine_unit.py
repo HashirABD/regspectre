@@ -11,6 +11,7 @@ from engine.regmap import (
     bit_type,
 )
 from engine.c_parser import Operation, ParseError, SymbolError, parse
+from engine.intended_model import intended_state
 
 
 def test_regmap_isr_address():
@@ -210,3 +211,72 @@ def test_parser_unknown_bit_name_raises_symbol_error():
     with pytest.raises(SymbolError) as info:
         parse("UART_ISR |= (1U << BOGUS);")
     assert info.value.line == 1
+
+
+def test_intended_direct_assignment_clears_only_target_bit():
+    op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0001, mode="", c_line=1)
+    assert intended_state(op, 0b1001) == 0b1000
+    assert intended_state(op, 0b1111) == 0b1110
+
+
+def test_intended_direct_assignment_on_zero_state_stays_zero():
+    op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0001, mode="", c_line=1)
+    assert intended_state(op, 0b0000) == 0b0000
+
+
+def test_intended_rmw_set_hero_bug_case_pre_1001_keeps_neighbor_bit_3():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=1)
+    assert intended_state(op, 0b1001) == 0b1000
+
+
+def test_intended_rmw_set_on_zero_state_stays_zero():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=1)
+    assert intended_state(op, 0b0000) == 0b0000
+
+
+def test_intended_rmw_set_on_all_pending_pre_1111_clears_only_bit_0():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=1)
+    assert intended_state(op, 0b1111) == 0b1110
+
+
+def test_intended_rmw_set_with_single_pending_neighbor_keeps_it():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=1)
+    assert intended_state(op, 0b1000) == 0b1000
+
+
+def test_intended_rmw_clr_pre_1111_keeps_named_bit_2_set():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0100, mode="CLR", c_line=1)
+    assert intended_state(op, 0b1111) == 0b1111
+
+
+def test_intended_rmw_clr_pre_0000_stays_zero():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0100, mode="CLR", c_line=1)
+    assert intended_state(op, 0b0000) == 0b0000
+
+
+def test_intended_rmw_clr_with_pending_neighbor_keeps_it():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0100, mode="CLR", c_line=1)
+    assert intended_state(op, 0b1001) == 0b1001
+
+
+def test_intended_read_of_isr_keeps_pre_value():
+    op = Operation(kind="READ", reg="UART_ISR", mask=0, mode="", c_line=1)
+    assert intended_state(op, 0b1011) == 0b1011
+
+
+def test_intended_read_of_rdr_clears_read_to_clear_bits():
+    op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=1)
+    assert intended_state(op, 0xA5) == 0x00
+    assert intended_state(op, 0x00) == 0x00
+    assert intended_state(op, 0xFF) == 0x00
+
+
+def test_intended_ro_bit_written_keeps_pre_value():
+    op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0010, mode="", c_line=1)
+    assert intended_state(op, 0b0010) == 0b0010
+
+
+def test_intended_rejects_pre_wider_than_register():
+    op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0001, mode="", c_line=1)
+    with pytest.raises(ValueError):
+        intended_state(op, 0x10)
