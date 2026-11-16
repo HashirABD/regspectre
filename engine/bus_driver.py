@@ -10,6 +10,8 @@ Seeded hw_set stimulus: when a seed is given, every counted rising edge draws
 the hw_set value for the next cycle. Each of the HW_SET_WIDTH bits is set with
 probability 1/8. Each draw is logged in hw_log as (cycle, value), where cycle
 is the edge after which value was driven. Without a seed, hw_set stays 0.
+reset() reseeds the generator, so every reset restarts the same hw_set
+sequence and the same seed always gives the same hw_log.
 """
 
 import random
@@ -42,6 +44,7 @@ class BusDriver:
         self.dut = dut
         self.cycle = 0
         self.hw_log = []
+        self._seed = seed
         self._rng = None if seed is None else random.Random(seed)
 
     async def start(self, period_ns=10):
@@ -54,6 +57,8 @@ class BusDriver:
 
         Also drives every input to 0 so no X values reach the RTL, including
         hw_set. Clears hw_log. cycle is set to 0 when rst_n is released.
+        When seeded, reset reseeds the generator, so every reset restarts the
+        same hw_set sequence.
         """
         d = self.dut
         d.we.value = 0
@@ -69,6 +74,8 @@ class BusDriver:
         d.rst_n.value = 1
         self.cycle = 0
         self.hw_log.clear()
+        if self._seed is not None:
+            self._rng = random.Random(self._seed)
 
     def _draw_hw_set(self):
         """Draw one hw_set value. Each bit is set with probability 1/8."""
