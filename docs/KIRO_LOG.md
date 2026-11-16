@@ -108,3 +108,12 @@ Choices made by Kiro, not defined by the design, the top level array with no wra
 Verified by hand in Ubuntu, pytest 87 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only report.py and test_engine_unit.py.
 Not yet proven, the report has not seen violations from the real RTL. The UI spec depends on this format, so it must be final before the UI spec is written.
 Credits used, about 3.58 for this run. Code commit d3fdb18.
+
+## Task 8 part A, engine/demo.py ISR hero bug on real RTL (summary)
+Prompt summary: create engine/demo.py with an async run_c_source(dut, source, seed) that parses a C snippet, replays the operations on the real RTL through BusDriver, reads pre and actual UART_ISR values, calls detect_violations and returns the reports plus JSON. Two ISR snippets (|= and direct assignment), tests/test_demo.py with 3 cocotb tests, test_demo added to the Makefile module list. Kiro was told not to run make or cocotb and only to run ast syntax checks.
+Result: Kiro wrote demo.py, test_demo.py and changed one Makefile line. It made no pass claim, all expected values were derived by hand. Writes landed on the first try, sizes were not zero.
+Choices made by Kiro, the seed drives only a background hw_set prefix that is followed by a reset, the replay itself has no seeded noise. The pre state 0b1001 is set with one hw_set pulse and bus.idle(1). Pre for a WRITE is a read before the write, actual is a read after each operation. A UART_RDR operation raises ValueError in part A.
+Verified by hand in Ubuntu, pytest 87 passed, cocotb TESTS=20 PASS=20 (17 old plus 3 new), smoke TESTS=1 PASS=1, git status showed only Makefile, demo.py and test_demo.py. This proves on the real RTL that the |= snippet gives exactly one violation (UART_ISR bit 3, c_line 2, cycle 3) and the direct assignment gives an empty report.
+Weak point, the seed has no effect on the replay, so the same seed test only shows that two runs without random noise are identical. It is not a strong determinism proof. To be decided before part 8B. The docstring of test_demo.py has odd wording (randomized-free) to fix later.
+Not done yet, RDR double read replay, no LLM check, and the demo entry that prints the JSON. Task 8 is not complete.
+Credits used, about 2.48 for this run. Code commit ec15868.
