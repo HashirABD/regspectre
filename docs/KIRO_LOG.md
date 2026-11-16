@@ -33,3 +33,9 @@ Result. Kiro wrote conftest.py and tests/test_engine_unit.py, but engine/regmap.
 Prompt summary, run task 3 of tasks.md part A only, create engine/bus_driver.py with a BusDriver class (write, read, rmw, cycle stamps), no tests, no Makefile change, no BOM, LF line endings, stop after the step.
 
 Result. Kiro read rtl/uart_ctrl.sv and tests/test_uart_ctrl.py first, then wrote engine/bus_driver.py (3234 bytes, no BOM, no CRLF, syntax checked with python3 -m ast). The code has not been run against the RTL yet, that happens in part B with the cocotb tests. Kiro wrongly said task 2 was unverified, but task 2 was verified by hand (13 tests pass, commit e702d88). Credits used for this run, 1.65 (credits arrived from the Devpost form). Commit cdb6b9e.
+
+## 2026-11-16, Task 3 part B1
+
+Prompt summary, run task 3 of tasks.md part B1 only, edit only engine/bus_driver.py, add an optional seed argument with seeded hw_set stimulus (each bit set with probability 1 in 8), a hw_log of (cycle, value), reset clearing hw_log, and an idle(n) method, no tests, no Makefile change, no BOM, LF line endings, stop after the step.
+
+Result. Kiro rewrote engine/bus_driver.py (4914 bytes, no BOM, no CRLF, syntax checked with python3 -m ast, file read back to verify). The hw_set width of 4 bits was checked by hand against rtl/uart_ctrl.sv. The code has not been run against the RTL yet. Kiro raised one open point, reset does not reseed the random generator, so a second reset on the same driver continues the sequence. This will be fixed in a small follow up prompt. Credits used for this run, 1.46. Commit 66e16ca.
