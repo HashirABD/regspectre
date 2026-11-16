@@ -12,6 +12,7 @@ from engine.regmap import (
 )
 from engine.c_parser import Operation, ParseError, SymbolError, parse
 from engine.intended_model import intended_state
+from engine.detector import Violation_Report, detect_violations
 
 
 def test_regmap_isr_address():
@@ -280,3 +281,61 @@ def test_intended_rejects_pre_wider_than_register():
     op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0001, mode="", c_line=1)
     with pytest.raises(ValueError):
         intended_state(op, 0x10)
+
+
+def test_detector_hero_bug_reports_exactly_bit_3():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    reports = detect_violations(op, pre=0b1001, actual=0b0000, cycle=7)
+    assert reports == [Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=7, c_line=4)]
+
+
+def test_detector_direct_assignment_keeping_neighbor_gives_no_report():
+    op = Operation(kind="WRITE", reg="UART_ISR", mask=0b0001, mode="", c_line=2)
+    assert detect_violations(op, pre=0b1001, actual=0b1000, cycle=5) == []
+
+
+def test_detector_rmw_pre_1111_actual_0000_reports_bits_1_2_3():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    reports = detect_violations(op, pre=0b1111, actual=0b0000, cycle=9)
+    assert [r.bit for r in reports] == [1, 2, 3]
+    assert all(r.intended == 1 and r.actual == 0 for r in reports)
+
+
+def test_detector_rmw_pre_0000_gives_no_report():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    assert detect_violations(op, pre=0b0000, actual=0b0000, cycle=3) == []
+
+
+def test_detector_single_pending_neighbor_cleared_is_reported():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    reports = detect_violations(op, pre=0b1000, actual=0b0000, cycle=8)
+    assert reports == [Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=8, c_line=4)]
+
+
+def test_detector_single_pending_neighbor_kept_gives_no_report():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    assert detect_violations(op, pre=0b1000, actual=0b1000, cycle=8) == []
+
+
+def test_detector_rmw_clr_clearing_pending_neighbor_is_reported():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0100, mode="CLR", c_line=6)
+    reports = detect_violations(op, pre=0b1100, actual=0b0100, cycle=6)
+    assert [r.bit for r in reports] == [3]
+
+
+def test_detector_report_cycle_and_c_line_come_from_arguments():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=12)
+    reports = detect_violations(op, pre=0b1001, actual=0b0000, cycle=42)
+    assert reports[0].cycle == 42
+    assert reports[0].c_line == 12
+
+
+def test_detector_raw_operation_report_has_no_c_line():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=None)
+    reports = detect_violations(op, pre=0b1001, actual=0b0000, cycle=1)
+    assert reports[0].c_line is None
+
+
+def test_detector_plain_read_gives_no_report():
+    op = Operation(kind="READ", reg="UART_ISR", mask=0, mode="", c_line=1)
+    assert detect_violations(op, pre=0b1001, actual=0b0000, cycle=2) == []
