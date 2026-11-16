@@ -1,5 +1,7 @@
 """Unit tests for engine components."""
 
+import json
+
 import pytest
 
 from engine.regmap import (
@@ -13,6 +15,7 @@ from engine.regmap import (
 from engine.c_parser import Operation, ParseError, SymbolError, parse
 from engine.intended_model import intended_state
 from engine.detector import Violation_Report, detect_rdr_double_reads, detect_violations
+from engine.report import report_to_dict, reports_to_json
 
 
 def test_regmap_isr_address():
@@ -433,3 +436,85 @@ def test_detector_rdr_negative_cycle_raises_value_error():
     op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
     with pytest.raises(ValueError):
         detect_rdr_double_reads([(op, 0x01, -1)])
+
+
+def test_report_empty_violation_list_gives_valid_empty_array():
+    text = reports_to_json([])
+    assert text == "[]"
+    assert json.loads(text) == []
+
+
+def test_report_hero_bug_violation_has_expected_fields_in_fixed_order():
+    report = Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=7, c_line=4)
+    text = reports_to_json([report])
+    parsed = json.loads(text)
+    assert parsed == [{"register": "UART_ISR", "bit": 3, "intended": 1, "actual": 0, "cycle": 7, "c_line": 4}]
+    assert list(parsed[0].keys()) == ["register", "bit", "intended", "actual", "cycle", "c_line"]
+
+
+def test_report_rdr_violation_from_raw_list_omits_c_line():
+    report = Violation_Report(register="UART_RDR", bit=5, intended=1, actual=0, cycle=88, c_line=None)
+    parsed = json.loads(reports_to_json([report]))
+    assert parsed == [{"register": "UART_RDR", "bit": 5, "intended": 1, "actual": 0, "cycle": 88}]
+    assert "c_line" not in parsed[0]
+
+
+def test_report_rdr_violation_from_snippet_keeps_c_line():
+    report = Violation_Report(register="UART_RDR", bit=0, intended=1, actual=0, cycle=11, c_line=7)
+    parsed = json.loads(reports_to_json([report]))
+    assert parsed == [{"register": "UART_RDR", "bit": 0, "intended": 1, "actual": 0, "cycle": 11, "c_line": 7}]
+
+
+def test_report_missing_c_line_is_omitted_not_written_as_null():
+    report = Violation_Report(register="UART_ISR", bit=2, intended=1, actual=0, cycle=3, c_line=None)
+    text = reports_to_json([report])
+    assert "c_line" not in text
+    assert "null" not in text
+
+
+def test_report_several_violations_keep_input_order():
+    reports = [
+        Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=5, c_line=9),
+        Violation_Report(register="UART_ISR", bit=0, intended=1, actual=0, cycle=5, c_line=9),
+        Violation_Report(register="UART_ISR", bit=2, intended=1, actual=0, cycle=5, c_line=9),
+    ]
+    parsed = json.loads(reports_to_json(reports))
+    assert [record["bit"] for record in parsed] == [3, 0, 2]
+
+
+def test_report_same_input_called_twice_gives_identical_string():
+    reports = [
+        Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=7, c_line=4),
+        Violation_Report(register="UART_RDR", bit=5, intended=1, actual=0, cycle=8, c_line=None),
+    ]
+    assert reports_to_json(reports) == reports_to_json(reports)
+
+
+def test_report_output_from_detector_parses_back_to_expected_data():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    reports = detect_violations(op, pre=0b1001, actual=0b0000, cycle=7)
+    parsed = json.loads(reports_to_json(reports))
+    assert parsed == [{"register": "UART_ISR", "bit": 3, "intended": 1, "actual": 0, "cycle": 7, "c_line": 4}]
+
+
+def test_report_to_dict_rejects_object_that_is_not_a_violation_report():
+    with pytest.raises(TypeError):
+        report_to_dict({"register": "UART_ISR", "bit": 3, "intended": 1, "actual": 0, "cycle": 7})
+
+
+def test_report_to_dict_rejects_intended_outside_0_or_1():
+    report = Violation_Report(register="UART_ISR", bit=3, intended=2, actual=0, cycle=7, c_line=4)
+    with pytest.raises(ValueError):
+        report_to_dict(report)
+
+
+def test_report_to_dict_rejects_bool_as_bit_index():
+    report = Violation_Report(register="UART_ISR", bit=True, intended=1, actual=0, cycle=7, c_line=4)
+    with pytest.raises(TypeError):
+        report_to_dict(report)
+
+
+def test_report_to_dict_rejects_negative_cycle():
+    report = Violation_Report(register="UART_ISR", bit=3, intended=1, actual=0, cycle=-1, c_line=4)
+    with pytest.raises(ValueError):
+        report_to_dict(report)
