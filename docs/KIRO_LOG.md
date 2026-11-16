@@ -75,3 +75,11 @@ Result. One line changed in engine/c_parser.py. 37 of 37 tests pass (13 regmap a
 Prompt summary, run task 5 of tasks.md only, read the intended state section of design.md, regmap.py and the Operation dataclass, create engine/intended_model.py with intended_state(op, pre) (bits outside the named mask keep pre, W1C bits inside the mask follow write semantics, handle WRITE, RMW SET, RMW CLR and READ), add intended model unit tests to tests/test_engine_unit.py, Kiro runs pytest once and reports the counts, no BOM, LF line endings, stop after the step.
 
 Result. Kiro wrote engine/intended_model.py (2056 bytes) and 13 intended tests next to the 37 existing tests. Kiro's first write was cut off after the import line, Kiro noticed that the tests were missing, appended them again and ran pytest once. 50 of 50 pass, checked again by hand, 50 pytest, 17 of 17 cocotb and 1 of 1 smoke. The design does not define the rule for READ operations, so Kiro chose that a read of UART_RDR clears its read to clear bits in the intended state, otherwise every single RDR read would look like a violation. The hero bug case is covered, pre 0b1001 with UART_ISR |= bit 0 gives intended 0b1000 while the real RTL gives 0b0000. Credits used for this run, 3.33.
+
+## Task 6 part A, detector.py (summary)
+Prompt summary: create engine/detector.py with Violation_Report and a function that reports every bit intended 1 and actual 0 on a UART_ISR read modify write, add 10 detector tests, run pytest once.
+Result: engine/detector.py created and 10 detector tests added, Kiro reported 60 passed.
+Problems seen: the first write of detector.py put a copy of the test file into it, the next two writes left it empty, and the fourth attempt with try and catch worked. Cause not confirmed. The test file hash still matched the 50 test version after those attempts.
+Verified by hand in Ubuntu, pytest 60 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
+Open issue found in review, detector also reports bit 1 (RX_READY, read only) which could be a false positive. To be fixed before part B.
+Credits used, about 5.23 for this run. Code commit 4515626.
