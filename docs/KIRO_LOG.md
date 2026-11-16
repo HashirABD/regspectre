@@ -144,3 +144,16 @@ Not verified: python3 -m engine.demo has not been run by hand yet (cocotb import
 Limits: the no LLM check is static. It finds forbidden imports from a closed list and direct eval or exec calls. It does not catch __import__, importlib, subprocess or SDKs outside the list, so it is not proof that no network is used at run time. Determinism was shown for seed None over three runs only.
 Credits used: about 6.86 (Kiro estimate).
 Commit: 8f234ca
+
+## Task 9 part A, Hypothesis property tests 1 to 7
+
+Prompt summary (this is a summary, not the verbatim prompt): asked Kiro to read design.md Properties 1 to 7 and the existing engine files, then write tests/test_engine_props.py with one Hypothesis test per property, without touching engine files, design.md, requirements.md, tasks.md or rtl/uart_ctrl.sv.
+
+Result: 7 Hypothesis tests for Properties 1 to 7 in tests/test_engine_props.py. Kiro added derandomize=True on its own. Bit 1 follows Requirement 1.8 and the intended model. The actual value in the tests comes from a test side W1C model, not from the RTL.
+
+Verified by hand in the Ubuntu terminal: pytest engine 87 passed, no_llm 6 passed, props 7 passed, cocotb 30 of 30, smoke 1 of 1, git status showed only the new file.
+
+Known weak points: derandomize=True means the same 100 examples run every time. Properties 3, 4 and 5 check engine logic against a test side model, not against real hardware (only Property 8 will do that). The example count for all 7 tests is not confirmed. The design.md Property 2 wording conflicts with Requirement 1.8 and is still open.
+
+Credits used: about 5.43
+Commit: 5fc3110
