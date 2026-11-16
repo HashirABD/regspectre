@@ -183,3 +183,11 @@ Known weak points: the test has no negative control, so it is not shown that it 
 
 Credits used: about 6.95 (Kiro's own estimate)
 Commit: 44237e6
+
+## Task 9 part B2: add test_pbt_hw_timing to the uart_ctrl cocotb module list
+- Prompt summary (summary, not verbatim): change exactly one line in tests/Makefile, the uart_ctrl COCOTB_TEST_MODULES line, to add test_pbt_hw_timing. No BOM, LF only, keep missing trailing newline, do not run make or cocotb, do not start Task 10.
+- Result: Kiro changed only that line. Kiro reported size 510 to 529 bytes (19 bytes for ",test_pbt_hw_timing"), BOM False, CRLF False, no trailing newline kept.
+- Verified by hand: git diff showed 1 file, 1 insertion, 1 deletion, only the module line changed. Full check in Ubuntu: pytest engine 87 passed, no_llm 6 passed, props 7 passed, cocotb TESTS=31 PASS=31 FAIL=0, pbt printed "100 examples ran and passed", smoke TESTS=1 PASS=1, git status showed only tests/Makefile modified.
+- Not proven by this step: Property 8 has no negative control yet, so it is not shown that the test can catch a neighbor wipeout. The printed count includes Hypothesis replays.
+- Credits used: 4.65 (Kiro estimate)
+- Commit: 0453c76
