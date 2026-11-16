@@ -297,7 +297,7 @@ From a raw transaction list (same violation, `c_line` omitted):
 
 ### Property 2: Intended-state model respects the named mask
 
-*For any* operation naming bit mask `M` and any pre-operation register state, `Intended_State[i] == pre[i]` for every bit `i` outside `M`; and for every bit `i` inside `M`, `Intended_State[i]` equals the W1C write effect of the written value (`0` if `written[i]==1`, else `pre[i]`).
+*For any* operation naming bit mask `M` and any pre-operation register state, `Intended_State[i] == pre[i]` for every bit `i` outside `M`; and for every bit `i` inside `M` of type W1C, `Intended_State[i]` equals the W1C write effect of the written value (`0` if `written[i]==1`, else `pre[i]`). For every bit `i` inside `M` that is not W1C, `Intended_State[i] == pre[i]`, because a write has no effect on it (bit 1, RX_READY, is read only; Requirement 1.8).
 
 **Validates: Requirements 4.1, 4.4, 3.3**
 
