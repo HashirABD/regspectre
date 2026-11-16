@@ -12,7 +12,7 @@ from engine.regmap import (
 )
 from engine.c_parser import Operation, ParseError, SymbolError, parse
 from engine.intended_model import intended_state
-from engine.detector import Violation_Report, detect_violations
+from engine.detector import Violation_Report, detect_rdr_double_reads, detect_violations
 
 
 def test_regmap_isr_address():
@@ -362,3 +362,74 @@ def test_detector_negative_cycle_raises_value_error():
     op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
     with pytest.raises(ValueError):
         detect_violations(op, pre=0b1001, actual=0b0000, cycle=-1)
+
+
+def test_detector_rdr_single_read_gives_no_report():
+    op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    assert detect_rdr_double_reads([(op, 0xA5, 3)]) == []
+
+
+def test_detector_rdr_two_reads_in_handler_report_each_bit_set_in_first():
+    first = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    second = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=3, handler="handler")
+    reports = detect_rdr_double_reads([(first, 0xA5, 4), (second, 0x00, 5)])
+    assert [r.bit for r in reports] == [0, 2, 5, 7]
+    assert all(r.register == "UART_RDR" and r.intended == 1 and r.actual == 0 for r in reports)
+
+
+def test_detector_rdr_two_reads_with_zero_first_value_give_no_report():
+    first = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    second = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=3, handler="handler")
+    assert detect_rdr_double_reads([(first, 0x00, 4), (second, 0x00, 5)]) == []
+
+
+def test_detector_rdr_isr_reads_around_rdr_reads_add_no_report():
+    isr = Operation(kind="READ", reg="UART_ISR", mask=0, mode="", c_line=1, handler="handler")
+    rdr1 = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=3, handler="handler")
+    rdr2 = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=4, handler="handler")
+    reads = [(isr, 0x0B, 1), (rdr1, 0x3C, 2), (isr, 0x0B, 3), (rdr2, 0x00, 4), (isr, 0x00, 5)]
+    reports = detect_rdr_double_reads(reads)
+    assert [r.bit for r in reports] == [2, 3, 4, 5]
+    assert all(r.cycle == 4 and r.c_line == 4 for r in reports)
+
+
+def test_detector_rdr_isr_reads_only_give_no_report():
+    isr = Operation(kind="READ", reg="UART_ISR", mask=0, mode="", c_line=1, handler="handler")
+    assert detect_rdr_double_reads([(isr, 0x0F, 1), (isr, 0x0F, 2)]) == []
+
+
+def test_detector_rdr_third_read_in_handler_is_not_compared():
+    rdr = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    reports = detect_rdr_double_reads([(rdr, 0xFF, 1), (rdr, 0x00, 2), (rdr, 0x00, 3)])
+    assert len(reports) == 8
+    assert all(r.cycle == 2 for r in reports)
+
+
+def test_detector_rdr_reads_in_different_handlers_are_not_compared():
+    in_a = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="a")
+    in_b = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=5, handler="b")
+    assert detect_rdr_double_reads([(in_a, 0xFF, 1), (in_b, 0x00, 2)]) == []
+
+
+def test_detector_rdr_reads_outside_any_handler_are_not_scoped():
+    op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="")
+    assert detect_rdr_double_reads([(op, 0xFF, 1), (op, 0x00, 2)]) == []
+
+
+def test_detector_rdr_report_carries_second_read_cycle_and_c_line():
+    first = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    second = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=7, handler="handler")
+    reports = detect_rdr_double_reads([(first, 0x01, 10), (second, 0x00, 11)])
+    assert reports == [Violation_Report(register="UART_RDR", bit=0, intended=1, actual=0, cycle=11, c_line=7)]
+
+
+def test_detector_rdr_value_wider_than_8_bits_raises_value_error():
+    op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    with pytest.raises(ValueError):
+        detect_rdr_double_reads([(op, 0x100, 1)])
+
+
+def test_detector_rdr_negative_cycle_raises_value_error():
+    op = Operation(kind="READ", reg="UART_RDR", mask=0, mode="", c_line=2, handler="handler")
+    with pytest.raises(ValueError):
+        detect_rdr_double_reads([(op, 0x01, -1)])
