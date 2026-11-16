@@ -45,3 +45,9 @@ Result. Kiro rewrote engine/bus_driver.py (4914 bytes, no BOM, no CRLF, syntax c
 Prompt summary, small follow up on engine/bus_driver.py only, store the seed and reseed the random generator inside reset so every reset restarts the same hw_set sequence, update docstrings, no other behavior change, no BOM, LF line endings, stop after the step.
 
 Result. Kiro applied four exact string replacements (each had to match once), file is now 5261 bytes, no BOM, no CRLF, syntax checked with python3 -m ast. Not yet run against the RTL, that happens in part B2. Credits used for this run, 1.24.
+
+## 2026-11-16, Task 3 part B2a
+
+Prompt summary, run task 3 of tasks.md part B2a only, add the PYTHONPATH export and test_bus_driver module to tests/Makefile, create tests/test_bus_driver.py with two tests (read plus W1C write, and cycle stamps for write, read, rmw and idle), Kiro must not run make, no BOM, LF line endings, stop after the step.
+
+Result. Kiro edited tests/Makefile with exact string replacements and wrote tests/test_bus_driver.py (1780 bytes, no BOM, no CRLF, syntax checked). The simulation was run by hand in the Ubuntu terminal with cd tests and make, and all 13 cocotb tests pass (11 test_uart_ctrl and 2 test_bus_driver). This is the first run of bus_driver.py against the RTL. Seeded hw_set determinism, the rmw bug scenario and RDR read to clear are not tested yet, they come in part B2b. Credits used for this run, 0.75.
