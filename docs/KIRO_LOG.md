@@ -126,3 +126,11 @@ Review warnings: helper assumes first pre is 0b1001 for every seed (passed for s
 Known limit: when hardware sets bit 3 on the commit edge the detector reports nothing (about 1 seed in 8). Demo video must use the quiet run (seed None) and the write up must state this limit.
 Credits used: about 4.91 (Kiro estimate).
 Commit: 0efd7bb
+
+## Task 8 part 8B2: RDR double read replay in engine/demo.py (summary)
+Prompt summary: add RDR_DOUBLE_READ_SNIPPET and RDR_SINGLE_READ_SNIPPET and an async run_c_rdr_source that replays UART_RDR reads through BusDriver on the real RTL, builds (op, value, cycle) tuples and calls detect_rdr_double_reads, plus new cocotb tests in tests/test_demo.py (this is a summary, not the verbatim prompt).
+Result: run_c_rdr_source(dut, source, seed=None, trace=None) returns (reports, json_text). Kiro chose rx_data 0xA5 driven with rx_valid high for one edge after reset, value taken before the commit edge, cycle is the commit edge. tests/test_demo.py now has 12 cocotb tests (7 old plus 5 new).
+Verified by hand: pytest 87 passed, cocotb TESTS=29 PASS=29, smoke TESTS=1 PASS=1, git status showed only engine/demo.py and tests/test_demo.py. The double read gives bits 0, 2, 5, 7 with cycle 3 and c_line 3, the single read and two different handlers give an empty report, same seed gives identical JSON and hw_log, and five seeds (7, 11, 13, 17, 19) gave the same RDR reports.
+Known gaps: grouping is by handler name, so two invocations of the same handler name would be one group and could give a false positive (no test yet). Only one rx_data value (0xA5) was tested. The seed independence is shown for five seeds only, not proven for all.
+Credits used: about 4.82 (Kiro estimate).
+Commit: 46d5a96
