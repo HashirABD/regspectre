@@ -294,10 +294,10 @@ def test_detector_direct_assignment_keeping_neighbor_gives_no_report():
     assert detect_violations(op, pre=0b1001, actual=0b1000, cycle=5) == []
 
 
-def test_detector_rmw_pre_1111_actual_0000_reports_bits_1_2_3():
+def test_detector_rmw_pre_1111_actual_0000_reports_bits_2_and_3_only():
     op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
     reports = detect_violations(op, pre=0b1111, actual=0b0000, cycle=9)
-    assert [r.bit for r in reports] == [1, 2, 3]
+    assert [r.bit for r in reports] == [2, 3]
     assert all(r.intended == 1 and r.actual == 0 for r in reports)
 
 
@@ -339,3 +339,26 @@ def test_detector_raw_operation_report_has_no_c_line():
 def test_detector_plain_read_gives_no_report():
     op = Operation(kind="READ", reg="UART_ISR", mask=0, mode="", c_line=1)
     assert detect_violations(op, pre=0b1001, actual=0b0000, cycle=2) == []
+
+
+def test_detector_rmw_pre_0010_actual_0000_gives_no_report():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    assert detect_violations(op, pre=0b0010, actual=0b0000, cycle=4) == []
+
+
+def test_detector_rmw_pre_1011_actual_0010_reports_exactly_bit_3():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    reports = detect_violations(op, pre=0b1011, actual=0b0010, cycle=4)
+    assert [r.bit for r in reports] == [3]
+
+
+def test_detector_actual_wider_than_4_bits_raises_value_error():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    with pytest.raises(ValueError):
+        detect_violations(op, pre=0b1001, actual=0b10000, cycle=4)
+
+
+def test_detector_negative_cycle_raises_value_error():
+    op = Operation(kind="RMW", reg="UART_ISR", mask=0b0001, mode="SET", c_line=4)
+    with pytest.raises(ValueError):
+        detect_violations(op, pre=0b1001, actual=0b0000, cycle=-1)
