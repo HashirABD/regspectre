@@ -134,3 +134,13 @@ Verified by hand: pytest 87 passed, cocotb TESTS=29 PASS=29, smoke TESTS=1 PASS=
 Known gaps: grouping is by handler name, so two invocations of the same handler name would be one group and could give a false positive (no test yet). Only one rx_data value (0xA5) was tested. The seed independence is shown for five seeds only, not proven for all.
 Credits used: about 4.82 (Kiro estimate).
 Commit: 46d5a96
+
+## Task 8 part 8B3: format_report, demo entry, determinism test, static no LLM check (summary)
+Prompt summary: add format_report and a main() usage entry to engine/demo.py, add one three run determinism cocotb test to tests/test_demo.py, and add a new pure Python tests/test_no_llm.py that scans engine/ with ast (this is a summary, not the verbatim prompt).
+Result: format_report(json_text) returns the text plus one final newline and raises TypeError for non strings. python3 -m engine.demo only prints a usage message, it does not run cocotb or iverilog. tests/test_demo.py now has 13 cocotb tests. tests/test_no_llm.py has 6 tests, 3 of them are negative or allow list tests for the scanner.
+Differences from tasks.md (decided by me, Kiro followed my step and reported them): tasks.md wanted the determinism and no LLM checks in test_engine_unit.py (-k determinism, -k no_llm) and python -m engine.demo printing reports. I used a new file for no LLM, a seed None three run test in test_demo.py, and a usage message entry. This is an open decision for Task 10.
+Verified by hand: pytest engine 87 passed, pytest no_llm 6 passed, cocotb TESTS=30 PASS=30, smoke TESTS=1 PASS=1, git status showed only engine/demo.py, tests/test_demo.py and the new tests/test_no_llm.py.
+Not verified: python3 -m engine.demo has not been run by hand yet (cocotb import outside the simulator is unconfirmed).
+Limits: the no LLM check is static. It finds forbidden imports from a closed list and direct eval or exec calls. It does not catch __import__, importlib, subprocess or SDKs outside the list, so it is not proof that no network is used at run time. Determinism was shown for seed None over three runs only.
+Credits used: about 6.86 (Kiro estimate).
+Commit: 8f234ca
