@@ -51,3 +51,9 @@ Result. Kiro applied four exact string replacements (each had to match once), fi
 Prompt summary, run task 3 of tasks.md part B2a only, add the PYTHONPATH export and test_bus_driver module to tests/Makefile, create tests/test_bus_driver.py with two tests (read plus W1C write, and cycle stamps for write, read, rmw and idle), Kiro must not run make, no BOM, LF line endings, stop after the step.
 
 Result. Kiro edited tests/Makefile with exact string replacements and wrote tests/test_bus_driver.py (1780 bytes, no BOM, no CRLF, syntax checked). The simulation was run by hand in the Ubuntu terminal with cd tests and make, and all 13 cocotb tests pass (11 test_uart_ctrl and 2 test_bus_driver). This is the first run of bus_driver.py against the RTL. Seeded hw_set determinism, the rmw bug scenario and RDR read to clear are not tested yet, they come in part B2b. Credits used for this run, 0.75.
+
+## 2026-11-16, Task 3 part B2b
+
+Prompt summary, run task 3 of tasks.md part B2b only, edit only tests/test_bus_driver.py, keep the two existing tests, add four tests (rmw SET wipes the neighbor bit, direct write keeps the neighbor bit, RDR read to clear through the driver with rx_valid and rx_data driven from dut, seed determinism with reset reseeding), Kiro must not run make, no BOM, LF line endings, stop after the step.
+
+Result. Kiro appended four tests (file is now 4907 bytes, no BOM, no CRLF, syntax checked). The simulation was run by hand in the Ubuntu terminal with cd tests and make, and all 17 cocotb tests pass (11 test_uart_ctrl and 6 test_bus_driver). The rmw test shows the hero bug on the real RTL, ISR |= bit 0 also clears the pending bit 3. Task 3 is complete. Credits used for this run, 0.66.
