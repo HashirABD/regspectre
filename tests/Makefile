@@ -11,7 +11,7 @@ COCOTB_TEST_MODULES = test_smoke
 else ifeq ($(TARGET),uart_ctrl)
 VERILOG_SOURCES = $(shell pwd)/../rtl/uart_ctrl.sv
 COCOTB_TOPLEVEL = uart_ctrl
-COCOTB_TEST_MODULES = test_uart_ctrl,test_bus_driver
+COCOTB_TEST_MODULES = test_uart_ctrl,test_bus_driver,test_demo
 endif
 
 export PYTHONPATH := $(shell pwd)/..:$(PYTHONPATH)
