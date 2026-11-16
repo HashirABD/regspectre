@@ -170,3 +170,16 @@ Known weak points: Kiro's claim that Requirement 1.7 is not relevant to Property
 
 Credits used: about 5.4 (Kiro's own estimate)
 Commit: 0c9fbbf
+
+## Task 9 part B1, Property 8 RTL timing test
+
+Prompt summary (this is a summary, not the verbatim prompt): asked Kiro to read design.md Property 8, Requirement 9, Task 9 and the bus driver, then write only tests/test_pbt_hw_timing.py. A cocotb test where Hypothesis draws a per cycle hw_set schedule, a write cycle and a target BIT, issues UART_ISR = (1U << BIT) on the real RTL, and fails with a neighbor wipeout message if another W1C bit goes from set to cleared. Kiro must not run make or cocotb, and must not touch the Makefile or engine files.
+
+Result: one cocotb test. Kiro found that Hypothesis rejects async tests, so the @given test runs in a worker thread and sends each case over a queue to the cocotb side, which runs it on the RTL. W1C bits come from regmap bit_type, hw_set bit 1 is never driven, and the pre value is sampled at the falling edge before the commit. Kiro added suppress_health_check too_slow on its own. File is 6771 bytes, no BOM, no CRLF.
+
+Verified by hand in the Ubuntu terminal: bit_type for UART_ISR gives W1C, RO, W1C, W1C. Running make with COCOTB_TEST_MODULES=test_pbt_hw_timing gave TESTS=1 PASS=1 FAIL=0, the test printed 100 examples ran and passed, and the run took about 3.6 seconds. git status showed only the new file. The Makefile module list is not updated yet (Task 9 part B2).
+
+Known weak points: the test has no negative control, so it is not shown that it can catch a wipeout (an RMW style write should be tried against it). The printed count includes replays, so it does not prove 100 distinct examples. The shrinking path never ran because nothing failed. Schedule entries after the write are shifted one edge later. The pass shows only that this RTL did not wipe a neighbor on direct assignment in this run. It is randomized testing, not proof, and it does not check the RMW model used in Properties 3 to 5.
+
+Credits used: about 6.95 (Kiro's own estimate)
+Commit: 44237e6
