@@ -199,3 +199,11 @@ Verified by hand. Ran the test alone in the Ubuntu terminal, TESTS=1 PASS=1 FAIL
 Not proven. This control shows only that the wipeout condition flags a known bad RMW result on the real RTL. It does not show that the real Property 8 pipeline (worker thread, queue, falling edge pre sample) fails on a bad write. The wipeout function is a copy and can drift from tests/test_pbt_hw_timing.py. Only 5 seeds were run, so the rate of missed reports is not confirmed. The test is not yet in the Makefile.
 Credits. C1 5.14, C1b 5.13.
 Commit. 8ed29b2 (pushed).
+
+## Task 9 part C2, negative control added to the uart_ctrl cocotb module list
+Prompt summary (a summary, not the verbatim prompt). Kiro was asked to change one line in tests/Makefile, adding test_pbt_negative_control at the end of the uart_ctrl COCOTB_TEST_MODULES line, with no BOM, LF, no trailing newline, size 529 to 555 bytes, and not to run make or cocotb. A first draft of this prompt had wrong byte numbers, I corrected it before sending, only the corrected prompt went to Kiro.
+Result. Kiro changed only line 14, size 529 to 555 (26 bytes), no BOM, no CRLF, last byte unchanged. Kiro checked the old line matched once before writing.
+Verified by hand. git diff showed 1 file, 1 insertion, 1 deletion, only line 14. Full check in the Ubuntu terminal, pytest 87, 6, 7 passed, cocotb TESTS=32 PASS=32 FAIL=0, pbt printed 100 examples ran and passed, negative control printed 4 of 6 detected, smoke 1 of 1. Recently changed files showed nothing unexpected.
+Not proven. Property 8 real pipeline (worker thread, queue, falling edge pre sample) still has no negative control. The printed 100 examples includes Hypothesis replays.
+Credits. C2 4.89.
+Commit. 57800ac (pushed).
