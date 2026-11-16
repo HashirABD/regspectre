@@ -20,6 +20,7 @@ from engine.demo import (
     RDR_DOUBLE_READ_SNIPPET,
     RDR_RX_DATA,
     RDR_SINGLE_READ_SNIPPET,
+    format_report,
     run_c_rdr_source,
     run_c_source,
 )
@@ -324,3 +325,27 @@ async def test_demo_rdr_double_read_over_seeds_reports_same_bits(dut):
             assert report.cycle == 3, f"seed {seed}: cycle {report.cycle}"
             assert report.c_line == 3, f"seed {seed}: c_line {report.c_line}"
         assert len(json.loads(text)) == 4, f"seed {seed}: JSON {text}"
+
+
+@cocotb.test()
+async def test_demo_isr_rmw_three_quiet_runs_are_byte_identical(dut):
+    """Three quiet runs (seed None) of the |= snippet give byte-identical JSON, and format_report gives identical output.
+
+    Expected: a quiet run has no noise and the same pre state every time, so all three
+    runs give the same report. The JSON strings are equal as bytes, and format_report
+    returns each string with one final newline added.
+    """
+    clock = BusDriver(dut)
+    await clock.start()
+
+    texts = []
+    formatted = []
+    for _ in range(3):
+        _, text = await run_c_source(dut, ISR_RMW_SNIPPET, seed=None)
+        texts.append(text)
+        formatted.append(format_report(text))
+
+    encoded = [t.encode("utf-8") for t in texts]
+    assert encoded[0] == encoded[1] == encoded[2], "JSON bytes differ between quiet runs"
+    assert formatted[0] == formatted[1] == formatted[2], "format_report output differs between quiet runs"
+    assert formatted[0] == texts[0] + "\n", "format_report should add one final newline"

@@ -188,3 +188,30 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None):
         trace["reads"] = reads_trace
 
     return reports, reports_to_json(reports)
+
+USAGE = """usage: python3 -m engine.demo
+
+The replays in this module drive the uart_ctrl RTL through cocotb, so they need the
+RTL simulator (Icarus Verilog with cocotb 2.x). This entry point does not start the
+simulator and does not print violation reports.
+
+The runnable demo is tests/test_demo.py. Install the simulator, then run make in the
+tests directory. The default target runs test_demo.py with the other uart_ctrl
+modules. Those cocotb tests replay the ISR and RDR snippets on the RTL and check the
+JSON reports.
+"""
+
+
+def format_report(json_text):
+    """Return json_text unchanged, followed by one final newline."""
+    if not isinstance(json_text, str):
+        raise TypeError(f"json_text must be a str, got {type(json_text).__name__}")
+    return json_text + "\n"
+
+
+def main():
+    print(USAGE, end="")
+
+
+if __name__ == "__main__":
+    main()
