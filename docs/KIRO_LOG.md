@@ -191,3 +191,11 @@ Commit: 44237e6
 - Not proven by this step: Property 8 has no negative control yet, so it is not shown that the test can catch a neighbor wipeout. The printed count includes Hypothesis replays.
 - Credits used: 4.65 (Kiro estimate)
 - Commit: 0453c76
+
+## Task 9 parts C1 and C1b, negative control for Property 8
+Prompt summary (a summary, not the verbatim prompt). C1 asked Kiro to create tests/test_pbt_negative_control.py, one cocotb test that runs the |= hero bug as an RMW on the real RTL (pre 0b1001, ISR |= bit 0) and checks that the wipeout condition reports bit 3. C1b asked for fixes, removing the meaningless final assert, asserting pre in every seeded case, and a comment that the wipeout function is a copy.
+Result. C1 file created by Kiro (3910 bytes, ast check only, not run by Kiro). C1b rewrote it (6208 bytes, no BOM, no CRLF). Three of the seven checks I requested in C1b were wrong (post bit 0 always 0, post only 0b0000 or 0b1000, bit 0 check). Kiro refused them and instead asserted that post bit 0 and bit 3 equal the hw_set bits sampled at the commit edge from hw_log. Kiro also added a helper _run_hero_rmw that I did not ask for.
+Verified by hand. Ran the test alone in the Ubuntu terminal, TESTS=1 PASS=1 FAIL=0. Quiet case pre=0b1001 post=0b0000 wiped=[3]. Seeds 7 and 17 gave post 0b1000 (hardware set wins, Requirement 1.7, now confirmed by the hw_log asserts), seeds 11, 13, 19 gave post 0b0000. Wipeout detected in 4 of 6 cases.
+Not proven. This control shows only that the wipeout condition flags a known bad RMW result on the real RTL. It does not show that the real Property 8 pipeline (worker thread, queue, falling edge pre sample) fails on a bad write. The wipeout function is a copy and can drift from tests/test_pbt_hw_timing.py. Only 5 seeds were run, so the rate of missed reports is not confirmed. The test is not yet in the Makefile.
+Credits. C1 5.14, C1b 5.13.
+Commit. 8ed29b2 (pushed).
