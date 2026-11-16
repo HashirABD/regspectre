@@ -157,3 +157,16 @@ Known weak points: derandomize=True means the same 100 examples run every time. 
 
 Credits used: about 5.43
 Commit: 5fc3110
+
+## Design fix, Property 2 wording in design.md
+
+Prompt summary (this is a summary, not the verbatim prompt): asked Kiro to read Requirement 1 (criteria 1.7 and 1.8), the Property 2 section of design.md and the Property 2 test in tests/test_engine_props.py, then fix only the Property 2 wording so it agrees with Requirement 1.8, changing as little as possible and touching no other file.
+
+Result: Kiro changed one line in design.md. The W1C write effect formula now applies only to bits inside M of type W1C, and a new sentence says that a non W1C bit inside M keeps its pre value, with bit 1 (RX_READY, read only) as the example, per Requirement 1.8. design.md kept its existing UTF-8 BOM and LF line endings (no CRLF).
+
+Verified by hand in the Ubuntu terminal: git status showed only design.md, git diff stat showed 1 insertion and 1 deletion, the diff with cat -A showed no CRLF, and the full new line was read on screen and ends with Requirement 1.8. No tests were run, because this was a text only change.
+
+Known weak points: Kiro's claim that Requirement 1.7 is not relevant to Property 2 was not checked by me line by line. The new wording says "not W1C" in general, but only bit 1 of UART_ISR is a non W1C bit in the ISR mask case. How RDR (RTC) bits fit under Property 2 is not confirmed.
+
+Credits used: about 5.4 (Kiro's own estimate)
+Commit: 0c9fbbf
