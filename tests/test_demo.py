@@ -13,7 +13,17 @@ import json
 import cocotb
 
 from engine.bus_driver import BusDriver
-from engine.demo import ISR_DIRECT_SNIPPET, ISR_RMW_SNIPPET, PRE_HW_SET, run_c_source
+from engine.demo import (
+    ISR_DIRECT_SNIPPET,
+    ISR_RMW_SNIPPET,
+    PRE_HW_SET,
+    RDR_DOUBLE_READ_SNIPPET,
+    RDR_RX_DATA,
+    RDR_SINGLE_READ_SNIPPET,
+    run_c_rdr_source,
+    run_c_source,
+)
+from engine.regmap import bit_type
 
 W1C_BITS = (0, 2, 3)
 SEEDS = (7, 11, 13, 17, 19)
@@ -180,3 +190,137 @@ async def test_demo_two_seeds_complete_with_valid_reports(dut):
         trace = {}
         reports, text = await run_c_source(dut, ISR_RMW_SNIPPET, seed=seed, trace=trace)
         _check_isr_reports(reports, text, trace)
+
+
+
+RDR_TWO_HANDLERS_SNIPPET = """void uart_rdr_a(void) {
+    uint8_t first = UART_RDR;
+}
+void uart_rdr_b(void) {
+    uint8_t second = UART_RDR;
+}
+"""
+
+
+def _expected_rdr_bits(first, second):
+    """Return the RTC bits that were 1 in the first read and 0 in the second, using regmap."""
+    return [
+        bit
+        for bit in range(8)
+        if bit_type("UART_RDR", bit) == "RTC"
+        and ((first >> bit) & 1) == 1
+        and ((second >> bit) & 1) == 0
+    ]
+
+
+@cocotb.test()
+async def test_demo_rdr_double_read_snippet_reports_cleared_bits(dut):
+    """Quiet run (seed None): the double read reports the bits the first read returned and the second read did not.
+
+    Derivation: rx_data is 0xA5 = 1010_0101, so bits 0, 2, 5 and 7 are set. The pulse
+    is sampled at edge 1. The first read commits on edge 2 and returns 0xA5, and it
+    clears UART_RDR on that edge. The second read commits on edge 3 and returns 0x00.
+    Bits 0, 2, 5 and 7 are RTC bits in regmap and went from 1 to 0, so the expected
+    reports are bits [0, 2, 5, 7]. Each report has cycle 3 and c_line 3, the line of
+    the second read.
+    """
+    clock = BusDriver(dut)
+    await clock.start()
+
+    trace = {}
+    reports, text = await run_c_rdr_source(dut, RDR_DOUBLE_READ_SNIPPET, seed=None, trace=trace)
+
+    first, second = trace["reads"]
+    assert first["value"] == RDR_RX_DATA == 0xA5, f"first read value: {first['value']:#04x}"
+    assert second["value"] == 0x00, f"second read value: {second['value']:#04x}"
+    assert first["cycle"] == 2, f"first read should commit on edge 2, got {first['cycle']}"
+    assert second["cycle"] == 3, f"second read should commit on edge 3, got {second['cycle']}"
+    assert second["c_line"] == 3, f"second read is on line 3, got {second['c_line']}"
+
+    expected = _expected_rdr_bits(first["value"], second["value"])
+    assert expected == [0, 2, 5, 7], f"derived bits {expected}"
+    assert [r.bit for r in reports] == [0, 2, 5, 7], f"reported bits {[r.bit for r in reports]}"
+    for report in reports:
+        assert report.register == "UART_RDR", f"register: {report.register}"
+        assert report.intended == 1, f"intended: {report.intended}"
+        assert report.actual == 0, f"actual: {report.actual}"
+        assert report.cycle == 3, f"cycle should be the second read's cycle 3, got {report.cycle}"
+        assert report.c_line == 3, f"c_line should be the second read's line 3, got {report.c_line}"
+    assert json.loads(text) == [
+        {"register": "UART_RDR", "bit": bit, "intended": 1, "actual": 0, "cycle": 3, "c_line": 3}
+        for bit in (0, 2, 5, 7)
+    ]
+
+
+@cocotb.test()
+async def test_demo_rdr_single_read_snippet_gives_empty_report(dut):
+    """Quiet run (seed None): one UART_RDR read in a handler gives an empty report.
+
+    Expected: there is no second read to compare with, so the detector emits nothing.
+    """
+    clock = BusDriver(dut)
+    await clock.start()
+
+    trace = {}
+    reports, text = await run_c_rdr_source(dut, RDR_SINGLE_READ_SNIPPET, seed=None, trace=trace)
+
+    assert len(trace["reads"]) == 1, f"expected one read, got {len(trace['reads'])}"
+    assert trace["reads"][0]["value"] == RDR_RX_DATA, f"read value: {trace['reads'][0]['value']:#04x}"
+    assert reports == [], f"expected no report, got {reports}"
+    assert text == "[]", f"expected empty JSON array, got {text}"
+
+
+@cocotb.test()
+async def test_demo_rdr_two_handlers_one_read_each_give_empty_report(dut):
+    """Quiet run (seed None): two handlers that each read UART_RDR once give an empty report.
+
+    Expected: the two reads are in different handler scopes. Neither one is a second
+    read inside its own handler, so the detector emits nothing.
+    """
+    clock = BusDriver(dut)
+    await clock.start()
+
+    trace = {}
+    reports, text = await run_c_rdr_source(dut, RDR_TWO_HANDLERS_SNIPPET, seed=None, trace=trace)
+
+    assert [r["handler"] for r in trace["reads"]] == ["uart_rdr_a", "uart_rdr_b"], f"handlers: {trace['reads']}"
+    assert reports == [], f"expected no report, got {reports}"
+    assert text == "[]", f"expected empty JSON array, got {text}"
+
+
+@cocotb.test()
+async def test_demo_rdr_same_seed_gives_identical_json(dut):
+    """Two double-read runs with seed 7 give the same JSON string and the same hw_log, and the noise is active."""
+    clock = BusDriver(dut)
+    await clock.start()
+
+    first_trace = {}
+    second_trace = {}
+    _, first = await run_c_rdr_source(dut, RDR_DOUBLE_READ_SNIPPET, seed=7, trace=first_trace)
+    _, second = await run_c_rdr_source(dut, RDR_DOUBLE_READ_SNIPPET, seed=7, trace=second_trace)
+
+    assert first == second, f"JSON differs between runs:\n{first}\n---\n{second}"
+    assert len(first_trace["hw_log"]) > 0, "seeded replay should log hw_set noise"
+    assert first_trace["hw_log"] == second_trace["hw_log"], "hw_log differs between runs with the same seed"
+
+
+@cocotb.test()
+async def test_demo_rdr_double_read_over_seeds_reports_same_bits(dut):
+    """Over five seeds the double read reports bits 0, 2, 5 and 7, with cycle 3 and c_line 3.
+
+    Derivation: the hw_set noise reaches the RTL only through ISR bits, and the RTL
+    ignores hw_set bit 1. UART_RDR changes only on rx_valid and on an RDR read, and
+    neither depends on the seed. So the reports must not depend on the seed.
+    """
+    clock = BusDriver(dut)
+    await clock.start()
+
+    for seed in SEEDS:
+        trace = {}
+        reports, text = await run_c_rdr_source(dut, RDR_DOUBLE_READ_SNIPPET, seed=seed, trace=trace)
+
+        assert [r.bit for r in reports] == [0, 2, 5, 7], f"seed {seed}: bits {[r.bit for r in reports]}"
+        for report in reports:
+            assert report.cycle == 3, f"seed {seed}: cycle {report.cycle}"
+            assert report.c_line == 3, f"seed {seed}: c_line {report.c_line}"
+        assert len(json.loads(text)) == 4, f"seed {seed}: JSON {text}"

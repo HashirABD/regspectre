@@ -2,14 +2,14 @@
 
 run_c_source parses a C snippet, replays its operations on the uart_ctrl RTL
 through a BusDriver, and returns the violation reports for each UART_ISR
-operation. Part 8A replays UART_ISR operations only. A UART_RDR operation raises
-ValueError.
+operation. Part 8A: run_c_source replays UART_ISR operations only, and a UART_RDR
+operation raises ValueError. Part 8B2: run_c_rdr_source replays UART_RDR read operations.
 """
 
 from engine.bus_driver import BusDriver
 from engine.c_parser import parse
-from engine.detector import detect_violations
-from engine.regmap import ISR_ADDR
+from engine.detector import detect_rdr_double_reads, detect_violations
+from engine.regmap import ISR_ADDR, RDR_ADDR
 from engine.report import reports_to_json
 
 # Interrupt handler that sets TX_DONE with a read-modify-write. This is the bug.
@@ -101,5 +101,90 @@ async def run_c_source(dut, source, seed, trace=None):
     if trace is not None:
         trace["hw_log"] = list(bus.hw_log)
         trace["ops"] = ops_trace
+
+    return reports, reports_to_json(reports)
+
+# Interrupt handler that reads UART_RDR twice. The second read sees the register that
+# the first read cleared, so the received data is lost. This is the read-to-clear bug.
+RDR_DOUBLE_READ_SNIPPET = """void uart_rdr_twice(void) {
+    uint8_t first = UART_RDR;
+    uint8_t second = UART_RDR;
+}
+"""
+
+# Interrupt handler that reads UART_RDR once. This is the safe form.
+RDR_SINGLE_READ_SNIPPET = """void uart_rdr_once(void) {
+    uint8_t first = UART_RDR;
+}
+"""
+
+# Data driven onto rx_data with rx_valid high for one edge before an RDR replay.
+# 0xA5 is 1010_0101, so bits 0, 2, 5 and 7 are set. Every UART_RDR bit is read-to-clear.
+RDR_RX_DATA = 0xA5
+
+
+async def run_c_rdr_source(dut, source, seed=None, trace=None):
+    """Replay a UART_RDR read snippet on the RTL and return (reports, json_text).
+
+    The clock must already be running.
+
+    seed: seeds the BusDriver hw_set noise, as in run_c_source. seed None is a quiet
+    run. The noise reaches the RTL only through ISR bits, so it cannot change
+    UART_RDR, which changes only on rx_valid and on an RDR read.
+
+    Before the replay, RDR_RX_DATA is driven onto rx_data with rx_valid high for
+    exactly one rising edge, and rx_valid is then lowered. BusDriver does not drive
+    rx_valid or rx_data, so this is driven directly from dut. hw_set bit 1 is never
+    driven here.
+
+    Every READ operation is replayed with BusDriver.read, in program order. For each
+    read:
+    - value is the rdata returned at the falling edge before the read's commit edge.
+      That is the value the register held before the read cleared it.
+    - cycle is the commit rising edge of the read, where the read side effect lands.
+    Each read gives one (op, value, cycle) tuple. detect_rdr_double_reads groups the
+    tuples by op.handler and returns the reports. WRITE and RMW operations raise
+    ValueError.
+
+    Known gap: grouping is by handler name. Two separate invocations of the same
+    handler name in one source are treated as one group, so a false report is possible.
+
+    If trace is a dict, it is filled with:
+    - "hw_log": the driver hw_log for this run, as (cycle, value) pairs.
+    - "reads": one dict per READ with reg, handler, c_line, value and cycle.
+
+    Returns (reports, json_text), where json_text is reports_to_json(reports).
+    """
+    bus = BusDriver(dut, seed=seed)
+    await bus.reset()
+
+    dut.rx_data.value = RDR_RX_DATA
+    dut.rx_valid.value = 1
+    await bus.idle(1)
+    dut.rx_valid.value = 0
+
+    reads = []
+    reads_trace = []
+    for op in parse(source):
+        if op.kind != "READ":
+            raise ValueError(f"RDR replay supports READ operations only, got {op.kind}")
+        addr = RDR_ADDR if op.reg == "UART_RDR" else ISR_ADDR
+        value, cycle = await bus.read(addr)
+        reads.append((op, value, cycle))
+        reads_trace.append(
+            {
+                "reg": op.reg,
+                "handler": op.handler,
+                "c_line": op.c_line,
+                "value": value,
+                "cycle": cycle,
+            }
+        )
+
+    reports = detect_rdr_double_reads(reads)
+
+    if trace is not None:
+        trace["hw_log"] = list(bus.hw_log)
+        trace["reads"] = reads_trace
 
     return reports, reports_to_json(reports)
