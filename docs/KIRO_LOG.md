@@ -83,3 +83,11 @@ Problems seen: the first write of detector.py put a copy of the test file into i
 Verified by hand in Ubuntu, pytest 60 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
 Open issue found in review, detector also reports bit 1 (RX_READY, read only) which could be a false positive. To be fixed before part B.
 Credits used, about 5.23 for this run. Code commit 4515626.
+
+## Task 6 part A fix, detector reports only W1C bits (summary)
+Prompt summary: change engine/detector.py so only W1C bits of UART_ISR (taken from engine/regmap.py bit types, not hard coded) can produce a Violation_Report, so RX_READY bit 1 is never reported. Update the old bit 1 test, add 4 new detector tests (pre 0b0010 gives none, pre 0b1011 gives bit 3 only, actual wider than 4 bits raises ValueError, negative cycle raises ValueError), run pytest once.
+Reason: found in my review of the first detector, the prompt said every bit and that would have given a possible false positive on a read only bit. The wording mistake was in my prompt, not in Kiro.
+Result: Kiro reported 64 passed. All writes landed on the first try this time and sizes on disk were not zero.
+Verified by hand in Ubuntu, pytest 64 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
+Not yet proven, the detector has only seen hand written actual values, not values from the real RTL. That comes in Task 8.
+Credits used, about 2.94 for this run. Code commit 36afa9b.
