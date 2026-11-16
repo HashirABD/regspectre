@@ -117,3 +117,12 @@ Verified by hand in Ubuntu, pytest 87 passed, cocotb TESTS=20 PASS=20 (17 old pl
 Weak point, the seed has no effect on the replay, so the same seed test only shows that two runs without random noise are identical. It is not a strong determinism proof. To be decided before part 8B. The docstring of test_demo.py has odd wording (randomized-free) to fix later.
 Not done yet, RDR double read replay, no LLM check, and the demo entry that prints the JSON. Task 8 is not complete.
 Credits used, about 2.48 for this run. Code commit ec15868.
+
+## Task 8 part 8B1: seeded replay in engine/demo.py (summary)
+Prompt summary: rewrite run_c_source so the whole replay uses BusDriver with the seed, remove the old prefix that was followed by a reset, add optional trace dict, rewrite tests/test_demo.py (this is a summary, not the verbatim prompt).
+Result: run_c_source(dut, source, seed, trace=None) now keeps the seeded hw_set noise active for the whole replay. seed None gives a quiet run. Kiro chose the timing rule, pre is read before the write, cycle is the commit edge, actual is read after the commit edge. tests/test_demo.py now has 7 cocotb tests.
+Verified by hand: pytest 87 passed, cocotb TESTS=24 PASS=24, smoke TESTS=1 PASS=1, git status showed only engine/demo.py and tests/test_demo.py.
+Review warnings: helper assumes first pre is 0b1001 for every seed (passed for seeds 7, 11, 13, 17, 19 only), pulse before noise is Kiro's hand reasoning, bit 1 noise is drawn but ignored by the RTL, _sampled_at needs a hw_log entry for cycle minus 1.
+Known limit: when hardware sets bit 3 on the commit edge the detector reports nothing (about 1 seed in 8). Demo video must use the quiet run (seed None) and the write up must state this limit.
+Credits used: about 4.91 (Kiro estimate).
+Commit: 0efd7bb
