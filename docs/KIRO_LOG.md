@@ -91,3 +91,12 @@ Result: Kiro reported 64 passed. All writes landed on the first try this time an
 Verified by hand in Ubuntu, pytest 64 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
 Not yet proven, the detector has only seen hand written actual values, not values from the real RTL. That comes in Task 8.
 Credits used, about 2.94 for this run. Code commit 36afa9b.
+
+## Task 6 part B, RDR double read detection (summary)
+Prompt summary: add RDR double read detection per bit to engine/detector.py, reusing Violation_Report, keep detect_violations unchanged, a single read gives no report, add RDR detector tests, run pytest once. Kiro was told to pick the simplest reading if the design left the input format unclear and to say which rule it chose.
+Result: Kiro added detect_rdr_double_reads(reads) taking a list of (op, value, cycle) tuples in program order, grouped by op.handler. The second UART_RDR read in a handler is compared with the first, and each read to clear bit that was 1 in the first value and 0 in the second is reported. Reads outside a handler are ignored and a third read is not compared. 11 new detector rdr tests added. Kiro reported 75 passed. All writes landed on the first try.
+Choices made by Kiro, not defined by the design, the input tuple format, grouping by handler name only, and ignoring reads after the second. Kiro read design.md only with grep, so exact match with the design text is not confirmed by me.
+Known gap, two separate invocations of the same handler name would be grouped together and could give a false positive. To keep in mind for Task 8.
+Verified by hand in Ubuntu, pytest 75 passed, cocotb TESTS=17 PASS=17, smoke TESTS=1 PASS=1, git status showed only detector.py and test_engine_unit.py.
+Not yet proven, the detector has not seen reads from the real RTL. That comes in Task 8.
+Credits used, about 3.33 for this run. Code commit de77dfc.
