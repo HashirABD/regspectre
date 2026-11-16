@@ -57,3 +57,15 @@ Result. Kiro edited tests/Makefile with exact string replacements and wrote test
 Prompt summary, run task 3 of tasks.md part B2b only, edit only tests/test_bus_driver.py, keep the two existing tests, add four tests (rmw SET wipes the neighbor bit, direct write keeps the neighbor bit, RDR read to clear through the driver with rx_valid and rx_data driven from dut, seed determinism with reset reseeding), Kiro must not run make, no BOM, LF line endings, stop after the step.
 
 Result. Kiro appended four tests (file is now 4907 bytes, no BOM, no CRLF, syntax checked). The simulation was run by hand in the Ubuntu terminal with cd tests and make, and all 17 cocotb tests pass (11 test_uart_ctrl and 6 test_bus_driver). The rmw test shows the hero bug on the real RTL, ISR |= bit 0 also clears the pending bit 3. Task 3 is complete. Credits used for this run, 0.66.
+
+## 2026-11-16, Task 4 C subset parser
+
+Prompt summary, run task 4 of tasks.md only, read the parser section of design.md and regmap.py, create engine/c_parser.py (Operation dataclass, ParseError, parse function in plain Python, no new package) and add parser unit tests to tests/test_engine_unit.py, Kiro must not run pytest, no BOM, LF line endings, stop after the step.
+
+Result. Kiro wrote engine/c_parser.py (12195 bytes) and 24 parser tests next to the 13 regmap tests. Kiro followed the design and added the handler field to Operation and a SymbolError subclass of ParseError. Kiro only ran syntax checks, so a real bug was missed. The tokenizer produced lowercase token kinds (num, id, op) while the parser compared against uppercase (NUM, ID, OP), so 15 of 37 tests failed when run by hand with pytest, and the failing ones were exactly the tests that expect valid snippets to parse. Credits used for this run, 6.26. The 46 minute run time was mostly waiting for popup approval.
+
+## 2026-11-16, Task 4 fix
+
+Prompt summary, fix the token kind case in _tokenize only (m.lastgroup.upper()), then run pytest tests/test_engine_unit.py once and report the counts.
+
+Result. One line changed in engine/c_parser.py. 37 of 37 tests pass (13 regmap and 24 parser). Checked again by hand, 37 pytest pass, 17 of 17 cocotb pass (uart_ctrl and bus_driver) and 1 of 1 smoke pass. Lesson, run make clean when switching TARGET, otherwise a stale sim_build runs the wrong toplevel. Credits used for the fix, 1.81.
