@@ -14,9 +14,8 @@ against the hw_set values that the driver logged for the commit edge. Hardware s
 the commit edge wins over the write's clear (Requirement 1.7), so a post bit can be 1
 when the write cleared it. That is expected and is not a failure.
 
-The wipeout condition below is a copy of _wiped_neighbours in
-tests/test_pbt_hw_timing.py. The original is private there, so it is not imported. If
-one changes, change the other too.
+The wipeout condition is _wiped_neighbours from tests/test_pbt_hw_timing.py, imported
+by name, so this file and the real Property 8 test use the same function.
 
 This is a directed control, not proof of correctness. The RTL is not modified.
 """
@@ -24,9 +23,8 @@ This is a directed control, not proof of correctness. The RTL is not modified.
 import cocotb
 
 from engine.bus_driver import SET, BusDriver
-from engine.regmap import ISR_ADDR, bit_type
-
-W1C_BITS = tuple(i for i in range(4) if bit_type("UART_ISR", i) == "W1C")
+from engine.regmap import ISR_ADDR
+from test_pbt_hw_timing import _wiped_neighbours
 
 # bit 0 (TX_DONE) and bit 3 (OVERRUN_ERR) are pending before the RMW. Bit 1 is not used,
 # because the RTL drives bit 1 (RX_READY) from rx_valid.
@@ -36,12 +34,6 @@ PRE_HW_SET = 0b1001
 TARGET_BIT = 0
 
 SEEDS = (7, 11, 13, 17, 19)
-
-
-# Copy of _wiped_neighbours in tests/test_pbt_hw_timing.py. It can drift if that copy changes.
-def _wiped_neighbours(pre, post, bit):
-    """Copy of test_pbt_hw_timing._wiped_neighbours. Keep the two identical."""
-    return [i for i in W1C_BITS if i != bit and ((pre >> i) & 1) and not ((post >> i) & 1)]
 
 
 def _hw_sampled_at(bus, cycle):
