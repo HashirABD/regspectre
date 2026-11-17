@@ -11,12 +11,12 @@ in that run. The test prints the number of examples that ran.
 How Hypothesis and cocotb are combined. A cocotb coroutine cannot be awaited inside a
 Hypothesis test, and Hypothesis rejects coroutine test functions. So the @given test
 runs in a worker thread. For each drawn case, the worker puts the case on a queue and
-waits for the answer. The cocotb test serves that queue. It runs each case on the RTL
+waits for the answer. The cocotb side serves that queue. It runs each case on the RTL
 and puts back "pass" or "fail". A failure is raised inside the @given function, so
 Hypothesis shrinks it in the normal way. Only the cocotb side touches the DUT.
 
-The test is run by the uart_ctrl Makefile target. The Makefile does not list this
-module yet. That is Task 9 part B2.
+run_wipeout_check runs that pipeline for a write method that is passed in. The real test
+passes direct_write. The test is listed in the uart_ctrl target of tests/Makefile.
 """
 
 import queue
@@ -59,13 +59,19 @@ def _wiped_neighbours(pre, post, bit):
     return [i for i in W1C_BITS if i != bit and ((pre >> i) & 1) and not ((post >> i) & 1)]
 
 
-async def _run_case(dut, bus, schedule, write_at, bit):
+async def direct_write(bus, bit):
+    """Issue the direct assignment UART_ISR = (1U << bit). Returns the commit cycle."""
+    return await bus.write(ISR_ADDR, 1 << bit)
+
+
+async def _run_case(dut, bus, write_method, schedule, write_at, bit):
     """Run one case on the RTL. Returns ("pass", None) or ("fail", message).
 
     Each schedule entry is driven on the edge that follows the current point. The
     write commits on the edge that follows schedule[write_at]. The pre value is
     sampled at the falling edge just before that commit, and the post value is read
-    right after the commit.
+    right after the commit. write_method(bus, bit) issues the write and returns its
+    commit cycle.
     """
     await bus.reset()
     pre = None
@@ -77,7 +83,7 @@ async def _run_case(dut, bus, schedule, write_at, bit):
             dut.addr.value = ISR_ADDR
             await FallingEdge(dut.clk)
             pre = int(dut.rdata.value)
-            commit = await bus.write(ISR_ADDR, 1 << bit)
+            commit = await write_method(bus, bit)
             post, _ = await bus.read(ISR_ADDR)
         else:
             await bus.idle(1)
@@ -93,7 +99,7 @@ async def _run_case(dut, bus, schedule, write_at, bit):
 
 
 class _Bridge:
-    """Queues shared by the Hypothesis worker thread and the cocotb test."""
+    """Queues shared by the Hypothesis worker thread and the cocotb side."""
 
     def __init__(self):
         self.requests = queue.Queue()
@@ -135,7 +141,7 @@ def _hypothesis_worker(bridge):
         bridge.requests.put(None)
 
 
-async def _serve(dut, bus, bridge):
+async def _serve(dut, bus, bridge, write_method):
     """Answer each case from the worker thread until the worker sends None."""
     while True:
         try:
@@ -146,12 +152,35 @@ async def _serve(dut, bus, bridge):
         if case is None:
             return
         try:
-            kind, value = await _run_case(dut, bus, *case)
+            kind, value = await _run_case(dut, bus, write_method, *case)
         except Exception as exc:
             bridge.sim_error = exc
             bridge.results.put(("error", exc))
             return
         bridge.results.put((kind, value))
+
+
+async def run_wipeout_check(dut, bus, write_method):
+    """Run the Hypothesis pipeline and check every drawn case on the RTL.
+
+    write_method(bus, bit) must issue the write on UART_ISR and return its commit cycle.
+    Returns the number of examples that ran and passed. Raises AssertionError with the
+    neighbor-wipeout message for a failing case, and re-raises any simulator or
+    Hypothesis error.
+    """
+    bridge = _Bridge()
+    worker = threading.Thread(target=_hypothesis_worker, args=(bridge,), daemon=True)
+    worker.start()
+    await _serve(dut, bus, bridge, write_method)
+    worker.join(timeout=RESULT_WAIT_S)
+
+    if worker.is_alive():
+        raise AssertionError("Hypothesis worker did not finish")
+    if bridge.sim_error is not None:
+        raise bridge.sim_error
+    if bridge.hypothesis_error is not None:
+        raise bridge.hypothesis_error
+    return bridge.passed
 
 
 @cocotb.test()
@@ -164,21 +193,10 @@ async def test_pbt_hw_timing_direct_assignment_keeps_neighbours(dut):
     bus = BusDriver(dut)
     await bus.start()
 
-    bridge = _Bridge()
-    worker = threading.Thread(target=_hypothesis_worker, args=(bridge,), daemon=True)
-    worker.start()
-    await _serve(dut, bus, bridge)
-    worker.join(timeout=RESULT_WAIT_S)
-
-    if worker.is_alive():
-        raise AssertionError("Hypothesis worker did not finish")
-    if bridge.sim_error is not None:
-        raise bridge.sim_error
-    if bridge.hypothesis_error is not None:
-        raise bridge.hypothesis_error
+    passed = await run_wipeout_check(dut, bus, direct_write)
 
     print(
-        f"test_pbt_hw_timing: {bridge.passed} examples ran and passed "
+        f"test_pbt_hw_timing: {passed} examples ran and passed "
         f"(max_examples={MAX_EXAMPLES}). Randomized testing, not proof of correctness."
     )
-    assert bridge.passed >= MAX_EXAMPLES, f"only {bridge.passed} examples ran, need {MAX_EXAMPLES}"
+    assert passed >= MAX_EXAMPLES, f"only {passed} examples ran, need {MAX_EXAMPLES}"
