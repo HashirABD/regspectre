@@ -240,3 +240,11 @@ Verified by hand. git diff showed 4 insertions and 12 deletions in that one file
 Not proven. One run only, the .hypothesis cache can replay old examples. The negative control was not broken on purpose after this change, so it is not shown that a wrong _wiped_neighbours would make it fail. Correction to the D3 entry. It said the grep did not show the HypothesisSideeffectWarning lines, but that grep does not filter for them, so this says nothing about whether they appeared. Their cause is still not confirmed.
 Credits. 5.51.
 Commit. d019328.
+
+## Task 10 part A, tasks.md text fix (17 November 2026)
+- Prompt summary (a summary, not verbatim): Kiro was asked to fix four stale or wrong passages in .kiro/specs/uart_core/tasks.md only (Task 8 determinism and no LLM placement, Task 8 Verify line, Task 9 Verify line, Task 10 module list and counts).
+- Result: four passages changed, 4 insertions and 4 deletions, tasks.md is 13483 bytes, no BOM, no CR. Commit 2ef199c.
+- Verified by hand: git diff stat shows only tasks.md. Both test names Kiro wrote exist (test_seed_determinism at tests/test_bus_driver.py line 118, test_demo_isr_rmw_three_quiet_runs_are_byte_identical at tests/test_demo.py line 331). Full check after the edit: pytest 87, 6, 7 passed, cocotb TESTS=33 PASS=33, smoke TESTS=1 PASS=1.
+- Facts found by hand before this edit: pytest tests/ gives 100 passed and collects only test_engine_unit.py (87), test_no_llm.py (6), test_engine_props.py (7), no cocotb file. Kiro called this probably wrong without running it, the collect only run showed it is right. Example counts from Hypothesis statistics are 100, 100, 100, 64, 32, 100, 100 (Properties 4 and 5 ended with nothing left to do). The Task 8 filter -k "determinism or no_llm" on test_engine_unit.py selects nothing (exit code 5), so the old Task 8 Verify line failed when run literally.
+- Not proven: the phrase "check the JSON reports" for test_demo.py in Task 8 line 61 is Kiro's wording and was not checked against the test code. The k filters regmap, parser, intended, detector, report overlap (13, 24, 14, 26, 31 selected, total 108 against 87 tests) and intended selects 14 tests, cause not confirmed. Kiro said it re read tasks.md, the read tool reused an earlier read, so a fresh read in this run is not confirmed.
+- Credits: 5.74 estimated by Kiro.
