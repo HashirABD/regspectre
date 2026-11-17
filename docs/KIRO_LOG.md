@@ -215,3 +215,12 @@ Verified by hand. Full check in the Ubuntu terminal, pytest 87, 6, 7 passed, coc
 Not proven. The pipeline has still never been shown to fail on a bad write, that is D2. The RMW pre value question is open, cause and effect not confirmed. The printed 100 examples includes Hypothesis replays.
 Credits. D1 5.38.
 Commit. a1ca0be (pushed).
+
+## Task 9 part D2, negative control for the Property 8 pipeline with an RMW write
+Prompt summary (a summary, not the verbatim prompt). Kiro was asked to create only tests/test_pbt_pipeline_negative_control.py. One cocotb test runs run_wipeout_check with an RMW write method (bus.rmw with SET, the |= hero bug) and expects an AssertionError containing "neighbor wipeout". Kiro was told to keep the pre sample at the falling edge before the write, to read the RTL to check that a set W1C bit only clears by a software write, and not to run make or cocotb.
+Result. Kiro wrote the file, 2994 bytes, no BOM, no CRLF, python3 -m ast syntax check passed. Kiro reported from reading the RTL that W1C bits 0, 2 and 3 clear only by a bus write to UART_ISR or by reset, and that the rmw write commits two rising edges after the pre sample.
+Verified by hand. I ran the file alone in the Ubuntu terminal with make COCOTB_TEST_MODULES=test_pbt_pipeline_negative_control, TESTS=1 PASS=1 FAIL=0. Output, neighbor wipeout schedule=[1, 0] BIT=2 write_at=1 commit_cycle=3 pre=0b0001 post=0b0000 cleared=[0], exception type AssertionError. I checked this counterexample by hand against the RTL logic. git status showed only the new untracked file.
+Proven. The Property 8 pipeline (worker thread, queue, falling edge pre sample, post read) detects at least one bad RMW write, the Hypothesis shrinking path ran through the bridge, the sibling import works under cocotb.
+Not proven. One run only, not repeated. The test is not in tests/Makefile yet, that is D3. The HypothesisSideeffectWarning messages in the output have a cause that is not confirmed. A negative control shows that the pipeline can fail, it does not show that the real test never fails wrongly.
+Credits. D2 5.77.
+Commit. 7370a94 (pushed).
