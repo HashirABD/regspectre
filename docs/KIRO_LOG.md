@@ -224,3 +224,11 @@ Proven. The Property 8 pipeline (worker thread, queue, falling edge pre sample, 
 Not proven. One run only, not repeated. The test is not in tests/Makefile yet, that is D3. The HypothesisSideeffectWarning messages in the output have a cause that is not confirmed. A negative control shows that the pipeline can fail, it does not show that the real test never fails wrongly.
 Credits. D2 5.77.
 Commit. 7370a94 (pushed).
+
+## Task 9 part D3, add pipeline negative control to Makefile
+Prompt summary (a summary, not the verbatim prompt). Add test_pbt_pipeline_negative_control at the end of the uart_ctrl COCOTB_TEST_MODULES line in tests/Makefile, nothing else, check the old line matches once, write without BOM and with LF, do not run make or cocotb.
+Result. Kiro changed line 14 only. Size 555 to 590 bytes, no BOM, no CRLF, no trailing newline. Kiro's report wrote "line 555" for the old line match, which was a wrong wording for the byte size, harmless.
+Verified by hand. git diff showed 1 insertion and 1 deletion in tests/Makefile only. wc gave 590 bytes, file says ASCII text. Full check passed, pytest 87, 6, 7 passed, cocotb TESTS=33 PASS=33, pbt 100 examples ran and passed, negative control detected in 4 of 6 cases, pipeline negative control line printed with AssertionError, smoke TESTS=1 PASS=1. git status and recently changed files showed only tests/Makefile.
+Not proven. The suite ran once, the .hypothesis cache can replay old examples. The pipeline negative control shows the pipeline can fail, not that the real Property 8 test never fails wrongly. The cause of the HypothesisSideeffectWarning lines is not confirmed, the grep did not show them in this run.
+Credits. 5.25.
+Commit. 5b5852c.
