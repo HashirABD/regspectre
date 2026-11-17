@@ -232,3 +232,11 @@ Verified by hand. git diff showed 1 insertion and 1 deletion in tests/Makefile o
 Not proven. The suite ran once, the .hypothesis cache can replay old examples. The pipeline negative control shows the pipeline can fail, not that the real Property 8 test never fails wrongly. The cause of the HypothesisSideeffectWarning lines is not confirmed, the grep did not show them in this run.
 Credits. 5.25.
 Commit. 5b5852c.
+
+## Task 9 part E, negative control imports the shared wipeout function
+Prompt summary (a summary, not the verbatim prompt). Compare _wiped_neighbours in tests/test_pbt_hw_timing.py with the copy in tests/test_pbt_negative_control.py, and if equivalent replace the copy with a by name import, keep every printed line, assertion and value, do not run make or cocotb.
+Result. Kiro reported the two functions equivalent and changed only tests/test_pbt_negative_control.py. The copied function, W1C_BITS and the bit_type import were removed, and the line from test_pbt_hw_timing import _wiped_neighbours was added. Size 6208 to 5841 bytes, no BOM, no CRLF, python3 -m ast passed. Kiro read design.md Property 8 only by grep, not by reading the section, which was against the prompt. No effect on this step, noted anyway.
+Verified by hand. git diff showed 4 insertions and 12 deletions in that one file. The removed function body matched line 59 of test_pbt_hw_timing.py word for word. grep showed no W1C_BITS or bit_type left in the negative control. Full check passed, pytest 87, 6, 7 passed, cocotb TESTS=33 PASS=33, negative control output identical (quiet wiped [3], seeds 7 and 17 wiped [], detected in 4 of 6 cases), pipeline negative control line printed, smoke TESTS=1 PASS=1.
+Not proven. One run only, the .hypothesis cache can replay old examples. The negative control was not broken on purpose after this change, so it is not shown that a wrong _wiped_neighbours would make it fail. Correction to the D3 entry. It said the grep did not show the HypothesisSideeffectWarning lines, but that grep does not filter for them, so this says nothing about whether they appeared. Their cause is still not confirmed.
+Credits. 5.51.
+Commit. d019328.
