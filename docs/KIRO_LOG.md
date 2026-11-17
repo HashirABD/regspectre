@@ -207,3 +207,11 @@ Verified by hand. git diff showed 1 file, 1 insertion, 1 deletion, only line 14.
 Not proven. Property 8 real pipeline (worker thread, queue, falling edge pre sample) still has no negative control. The printed 100 examples includes Hypothesis replays.
 Credits. C2 4.89.
 Commit. 57800ac (pushed).
+
+## Task 9 part D1, Property 8 pipeline moved into a function with a write method parameter
+Prompt summary (a summary, not the verbatim prompt). Kiro was asked to refactor only tests/test_pbt_hw_timing.py with no behavior change. The pipeline (worker thread, queue, falling edge pre sample, post read) moves into run_wipeout_check(dut, bus, write_method). The real test passes direct_write. Same rule, same max_examples=100, no derandomize, _wiped_neighbours kept. No BOM, LF, Kiro not allowed to run make or cocotb.
+Result. Kiro wrote the file, 7600 bytes, no BOM, no CRLF, python3 -m ast syntax check passed. Kiro also edited the module docstring, because the old line saying the Makefile does not list the module was out of date. Kiro raised a caveat for D2, bus.rmw reads first, so its commit comes two edges after the falling edge pre sample, and the pre value may differ from the old value that rmw returns.
+Verified by hand. Full check in the Ubuntu terminal, pytest 87, 6, 7 passed, cocotb TESTS=32 PASS=32 FAIL=0, pbt printed 100 examples ran and passed, negative control printed 4 of 6 detected, smoke 1 of 1. git status showed only tests/test_pbt_hw_timing.py modified. I read the full git diff by hand, 38 insertions and 20 deletions, bus calls and their order unchanged.
+Not proven. The pipeline has still never been shown to fail on a bad write, that is D2. The RMW pre value question is open, cause and effect not confirmed. The printed 100 examples includes Hypothesis replays.
+Credits. D1 5.38.
+Commit. a1ca0be (pushed).
