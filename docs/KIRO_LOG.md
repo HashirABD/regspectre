@@ -288,3 +288,13 @@ Commit. d019328.
 - Result: requirements.md changed from 31410 to 32491 bytes, no BOM, no CR, 10 requirements, Requirement 7 now has 10 criteria. Commit 70d106b. Kiro read the whole file in two parts, edited directly with no subagent, 2.39 credits estimated by Kiro. Kiro caught and fixed its own missing blank line before the Requirement 8 heading.
 - Verified by hand: git status showed only this file, size 32491, first bytes "# R", CR count 0, 10 headings, 10 criteria in Requirement 7, blank lines before the Requirement 8 and 9 headings, Requirement 9 criteria 11 and 12 now cite Requirement 7 criteria 7 and 9, the text No response arrived appears in Requirement 7 criterion 10 and Requirement 9 criterion 6, the old text stopped responding is gone.
 - Not proven: the meaning of the new criteria was not checked line by line. Known open issue committed on purpose: Requirement 9 criterion 6 shows a message that says within 70 seconds, but its trigger (no response after the status check succeeded) has no 70 second limit. This came from my prompt, I asked for one common message without checking that the triggers differ. Requirement 8 criterion 6 still says the same reader without naming Requirement 9 criterion 4. The order of invalid_request (400) against busy is not defined. Kiro's cross reference table was not checked by me line by line.
+
+## studio_ui requirements fix E (18 November 2026)
+
+Prompt summary (summary only, not verbatim): Kiro was asked to remove the duplicate no response criterion (Requirement 9 criterion 6, same situation as Requirement 7 criterion 10 but without the 70 second limit) and to make Requirement 8 criterion 6 name Requirement 9 criterion 4 as the reader rule.
+
+Result: requirements.md went from 32491 to 32242 bytes. Commit 70e2dd9 (9 insertions, 10 deletions). Kiro credits 2.11 (Kiro's own estimate).
+
+Verified by hand: no BOM (first bytes "# R"), CR count 0, 10 requirement headings, Requirement 9 has 13 criteria numbered without a gap, blank line before every requirement heading, "No response arrived" appears only in Requirement 7 criterion 10.
+
+Not proven: Kiro compared 9.6 and 7.10 before deleting and said only the "status check succeeded" condition is lost and it changes no outcome. That is Kiro's claim, I did not verify it. The meaning of the new wording and Kiro's cross reference table were not checked line by line. Cause of nothing else is confirmed.
