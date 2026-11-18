@@ -21,7 +21,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 - **Violation_List**: the list in the Studio that shows one row for each element of a Violation_Report.
 - **Register_Map**: the register names, widths, and bit names defined in `engine/regmap.py`. UART_ISR is 4 bits wide with bit names TX_DONE, RX_READY, PARITY_ERR, and OVERRUN_ERR. UART_RDR is 8 bits wide with bit names RDR[0] to RDR[7].
 - **Register_Array**: the 32-cell display in the Studio for the selected register.
-- **Replayed_State**: an object with the keys register, pre, and post. register is the one register that the snippet names, UART_ISR or UART_RDR. pre is the value of that register sampled before the snippet's first access to it, and post is the value sampled after its last access. Both are integers from 0 up to the register's maximum, 15 for UART_ISR and 255 for UART_RDR. The Engine measures pre and post on the uart_ctrl RTL and never assumes post. The value is null when the snippet names no register. Replayed_State is separate from the Violation_Report. It is the state of the replayed snippet in the uart_ctrl simulation, not the state of a whole chip.
+- **Replayed_State**: an object with the keys register, pre, and post. register is the one register that the snippet names, UART_ISR or UART_RDR. pre is the value of that register sampled before the snippet's first access to it, and post is the value sampled after its last access. Both are integers from 0 up to the register's maximum, 15 for UART_ISR and 255 for UART_RDR. The Engine measures pre and post on the uart_ctrl RTL and never assumes post. The value is null when the snippet names no register. It is also null when the snippet contains only reads of UART_ISR, with no write and no read-modify-write of UART_ISR. In that case the Engine SHALL NOT assume or invent pre or post values, and the Studio shows "not replayed" under Requirement 5, criterion 15. Replayed_State is separate from the Violation_Report. It is the state of the replayed snippet in the uart_ctrl simulation, not the state of a whole chip.
 - **Unused_Cell**: a Register_Array cell whose bit index is at or above the width of the selected register.
 - **Live_Result**: a Violation_Report and its Replayed_State that the Backend produced for a run request the Studio sent during the current page session.
 - **Snapshot**: the file `web/public/demo_snapshot.json`, written by the Engine from a successful demo run. In each record, the report value is the Violation_Report text stored as a JSON string, in the same form as the report in a Backend response.
@@ -159,14 +159,15 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 #### Acceptance Criteria
 
 1. WHILE a Simulation is running, THE Backend SHALL reject each new run request with HTTP 409 and body {"error":"busy"} and SHALL start no second Simulation.
-2. WHEN a Simulation exits for any reason, including a normal end, a non-zero exit, or a stop under criterion 7, THE Backend SHALL accept the next valid run request and start a Simulation for it.
-3. WHILE a run request sent by the Studio is pending or the most recent status response reports busy true, THE Studio SHALL disable Run_Control.
-4. WHILE no run request sent by the Studio is pending and the most recent status response does not report busy true, THE Studio SHALL enable Run_Control.
-5. WHILE the page is open, THE Studio SHALL send one GET /api/status request every 1 second.
-6. WHEN the Backend returns HTTP 409, THE Studio SHALL display "A simulation is already running. Try again when it finishes." and SHALL show no results.
-7. IF a Simulation runs longer than 60 seconds after the Backend starts it, THEN THE Backend SHALL stop the Simulation, return HTTP 504 with body {"error":"timeout"}, and return no Violation_Report.
-8. WHEN the Studio receives HTTP 504, THE Studio SHALL display "The simulation ran longer than 60 seconds and was stopped. No partial results are shown." and SHALL show no results.
-9. IF the Studio receives no HTTP response to a run request within 70 seconds after sending it, THEN THE Studio SHALL display "No response arrived within 70 seconds. The Backend may still be running the simulation. No results are shown." and SHALL show no results.
+2. Notwithstanding criterion 1 of this requirement, WHEN a run request contains a User_Snippet that the new entry point rejects with a Parser_Error while a Simulation is running, THE Backend SHALL return HTTP 422 with the parser_error body defined in Requirement 3, criterion 22 and SHALL NOT return HTTP 409. THE Backend SHALL run the new entry point and the size check of Requirement 3, criterion 25 before it checks for Busy_State, so a run request that fails either check while a Simulation is running receives the response of that check. A valid run request that arrives while a Simulation is running SHALL receive HTTP 409 under criterion 1 of this requirement.
+3. WHEN a Simulation exits for any reason, including a normal end, a non-zero exit, or a stop under criterion 8, THE Backend SHALL accept the next valid run request and start a Simulation for it.
+4. WHILE a run request sent by the Studio is pending or the most recent status response reports busy true, THE Studio SHALL disable Run_Control.
+5. WHILE no run request sent by the Studio is pending and the most recent status response does not report busy true, THE Studio SHALL enable Run_Control.
+6. WHILE the page is open, THE Studio SHALL send one GET /api/status request every 1 second.
+7. WHEN the Backend returns HTTP 409, THE Studio SHALL display "A simulation is already running. Try again when it finishes." and SHALL show no results.
+8. IF a Simulation runs longer than 60 seconds after the Backend starts it, THEN THE Backend SHALL stop the Simulation, return HTTP 504 with body {"error":"timeout"}, and return no Violation_Report.
+9. WHEN the Studio receives HTTP 504, THE Studio SHALL display "The simulation ran longer than 60 seconds and was stopped. No partial results are shown." and SHALL show no results.
+10. IF the Studio receives no HTTP response to a run request within 70 seconds after sending it, THEN THE Studio SHALL display "No response arrived within 70 seconds. The Backend may still be running the simulation. No results are shown." and SHALL show no results and no Recorded_Output.
 
 ### Requirement 8: Recorded snapshot fallback
 
@@ -189,7 +190,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 13. WHILE Recorded_Output is displayed, THE Studio SHALL NOT display the word "live", in any letter case, in the source label or in any other text shown with the results.
 14. IF the most recent GET /api/status request received an HTTP response, THEN THE Studio SHALL NOT display Recorded_Output for any run.
 15. IF the Backend is an Unreachable_Backend and the user runs a User_Snippet, THEN THE Studio SHALL display "The backend is unreachable. User snippets need the backend." and SHALL NOT display Recorded_Output.
-16. IF the Backend is an Unreachable_Backend, the user runs a Demo_Snippet, and the Snapshot file is missing, cannot be parsed as JSON, has no record with the keys name, source, report, and replayed_state for each of the four Demo_Snippet names, or has a record whose report value cannot be read under criterion 6 of this requirement, THEN THE Studio SHALL display "The recorded output could not be loaded." and SHALL show no results.
+16. IF the Backend is an Unreachable_Backend, the user runs a Demo_Snippet, and the Snapshot file is missing, cannot be parsed as JSON, has no record with the keys name, source, report, and replayed_state for each of the four Demo_Snippet names, or has a record whose report value is not text that parses as an array of objects that match the Violation_Report schema in the Glossary, as Requirement 9, criterion 4 defines, THEN THE Studio SHALL display "The recorded output could not be loaded." and SHALL show no results.
 
 ### Requirement 9: Error states
 
@@ -202,13 +203,13 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 3. IF the Backend returns HTTP 500 with body {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display "The simulation failed: " followed by M, and SHALL show no results and no Recorded_Output.
 4. IF the response body of a run request is not valid JSON, or is not a JSON object with exactly the keys report and replayed_state, or its report value is not text that parses as an array of objects that match the Violation_Report schema in the Glossary, or its replayed_state value is neither null nor an object with the keys register, pre, and post, THEN THE Studio SHALL display "The backend returned a response the Studio cannot read. No results are shown." and SHALL show no results.
 5. IF the Backend returns an HTTP status code other than 200, 400, 409, 422, 500, or 504, THEN THE Studio SHALL display "The backend returned an unexpected status " followed by the status code, and SHALL show no results.
-6. IF a run request receives no HTTP response after the Studio's status check succeeded, THEN THE Studio SHALL display "The backend stopped responding during the run. No results are shown." and SHALL NOT display Recorded_Output.
+6. IF a run request receives no HTTP response after the Studio's status check succeeded, THEN THE Studio SHALL display "No response arrived within 70 seconds. The Backend may still be running the simulation. No results are shown." and SHALL NOT display Recorded_Output.
 7. IF a run request returns any error response, THEN THE Studio SHALL NOT display Recorded_Output for that run.
 8. WHEN a run starts, THE Studio SHALL clear the Violation_List, the Register_Array values, and the source label from the previous run before it displays the new state.
 9. IF the Backend returns HTTP 400 with body {"error":"too_large"}, THEN THE Studio SHALL display "The snippet is larger than 200 lines or 8 KB and was not run." and SHALL show no results.
 10. IF the Backend returns HTTP 400 with body {"error":"invalid_request"}, THEN THE Studio SHALL display "The backend rejected the run request. No results are shown." and SHALL show no results.
-11. IF the Backend returns HTTP 409 with body {"error":"busy"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 6, and SHALL show no results.
-12. IF the Backend returns HTTP 504 with body {"error":"timeout"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 8, and SHALL show no results.
+11. IF the Backend returns HTTP 409 with body {"error":"busy"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 7, and SHALL show no results.
+12. IF the Backend returns HTTP 504 with body {"error":"timeout"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 9, and SHALL show no results.
 13. IF the Backend returns HTTP 422 with body {"error":"parser_error"} that carries the line number and message of a Parser_Error, THEN THE Studio SHALL display the Parser_Error as Requirement 3, criterion 23 specifies, and SHALL show no Violation_List rows and no Register_Array values.
 14. IF the Backend returns HTTP 500 with a body other than {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display the message defined in criterion 4 and SHALL show no results.
 
