@@ -298,3 +298,13 @@ Result: requirements.md went from 32491 to 32242 bytes. Commit 70e2dd9 (9 insert
 Verified by hand: no BOM (first bytes "# R"), CR count 0, 10 requirement headings, Requirement 9 has 13 criteria numbered without a gap, blank line before every requirement heading, "No response arrived" appears only in Requirement 7 criterion 10.
 
 Not proven: Kiro compared 9.6 and 7.10 before deleting and said only the "status check succeeded" condition is lost and it changes no outcome. That is Kiro's claim, I did not verify it. The meaning of the new wording and Kiro's cross reference table were not checked line by line. Cause of nothing else is confirmed.
+
+## Handoff checks, Steps 57 to 60 (18 November 2026, no Kiro run, read only checks)
+
+Summary: I checked git log and commit 2ef199c by hand against the handoff text. No Kiro prompt was used and no repo file other than this log was changed.
+
+Findings by hand. First, the handoff said uart_core tasks.md was NOT changed in Task 10. That was wrong. Commit 2ef199c (Task 10 A) changed 4 lines in .kiro/specs/uart_core/tasks.md (Task 8, 9 and 10 verify text). The studio_ui commit chain is e47701e, 8b33328, 96d19ea, 873a787, 70d106b, 70e2dd9, each followed by its log commit. Second, the handoff said the example count of the 7 engine properties was not confirmed. I ran pytest tests/test_engine_props.py with --hypothesis-show-statistics. Result: Properties 1, 2, 3, 6, 7 ran 100 passing examples (stopped by max_examples=100), Property 4 ran 64 and Property 5 ran 32 (stopped because nothing left to do), 0 failing and 0 invalid everywhere, 7 passed. This matches the tasks.md text.
+
+My own mistake: my first command in Step 59 used a grep pattern that did not match the statistics text, so it showed no counts. Step 60 fixed it.
+
+Not proven: this shows how many examples ran, not that the properties check the right thing. Why Property 4 has exactly 64 cases was not checked against its strategy. Hypothesis is randomized testing, not proof. The content of the 4 changed tasks.md lines was read in the diff but not compared line by line with the current code. Cause of nothing else is confirmed.
