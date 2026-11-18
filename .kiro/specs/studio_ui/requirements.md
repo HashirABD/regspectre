@@ -161,7 +161,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 6. WHEN the Backend returns HTTP 409, THE Studio SHALL display "A simulation is already running. Try again when it finishes." and SHALL show no results.
 7. IF a Simulation runs longer than 60 seconds after the Backend starts it, THEN THE Backend SHALL stop the Simulation, return HTTP 504 with body {"error":"timeout"}, and return no Violation_Report.
 8. WHEN the Studio receives HTTP 504, THE Studio SHALL display "The simulation ran longer than 60 seconds and was stopped. No partial results are shown." and SHALL show no results.
-9. IF the Studio receives no HTTP response to a run request within 70 seconds after sending it, THEN THE Studio SHALL display "The simulation ran longer than 60 seconds and was stopped. No partial results are shown." and SHALL show no results.
+9. IF the Studio receives no HTTP response to a run request within 70 seconds after sending it, THEN THE Studio SHALL display "No response arrived within 70 seconds. The Backend may still be running the simulation. No results are shown." and SHALL show no results.
 
 ### Requirement 8: Recorded snapshot fallback
 
@@ -191,7 +191,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 
 #### Acceptance Criteria
 
-1. IF the Backend is an Unreachable_Backend, THEN THE Studio SHALL apply the rules of Requirement 8, criteria 7 and 11.
+1. IF the Backend is an Unreachable_Backend, THEN THE Studio SHALL apply the rules of Requirement 8, criteria 10 and 14.
 2. THE Backend SHALL return HTTP 500 with body {"error":"simulation_failed","message":M} when a Simulation exits with a non-zero status, where M is one line that states the failure.
 3. IF the Backend returns HTTP 500 with body {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display "The simulation failed: " followed by M, and SHALL show no results and no Recorded_Output.
 4. IF the response body of a run request is not valid JSON, or is not an array of objects that match the Violation_Report schema in the Glossary, THEN THE Studio SHALL display "The backend returned a response the Studio cannot read. No results are shown." and SHALL show no results.
