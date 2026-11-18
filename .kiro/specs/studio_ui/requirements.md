@@ -180,7 +180,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 3. THE Engine SHALL write the created_utc key as the UTC time at which the Engine writes the Snapshot, in ISO 8601 format ending in Z.
 4. THE Engine SHALL write the records key as an array of four objects in the order listed in Requirement 2, where each object has the keys name, source, report, and replayed_state, name holds the Demo_Snippet name, source holds that Demo_Snippet's C source, and replayed_state holds the Replayed_State of that Demo_Snippet from the same run, or null.
 5. THE Engine SHALL write the report value of each record as a JSON string that holds the Violation_Report text exactly as the Engine writer produced it for that Demo_Snippet in the same run, the same form as the report value in a Backend response under Requirement 6, criterion 7.
-6. THE Studio SHALL parse the report value of each Snapshot record with the same reader that it uses for the report string in a Backend response, and SHALL NOT use a separate reader for Recorded_Output.
+6. THE Studio SHALL parse the report value of each Snapshot record with the reader that Requirement 9, criterion 4 defines for the report string in a Backend response, and SHALL NOT use a separate reader for Recorded_Output.
 7. IF any Demo_Snippet replay does not complete without error, THEN THE Engine SHALL write no Snapshot and leave the existing Snapshot file byte-for-byte unchanged.
 8. THE Engine SHALL write the Snapshot only in the demo run path `python3 -m engine.demo run`, and no other Engine command or Backend code path SHALL write it.
 9. THE Studio SHALL read Recorded_Output only from `web/public/demo_snapshot.json` and SHALL NOT read recorded data from any other file.
@@ -203,15 +203,14 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 3. IF the Backend returns HTTP 500 with body {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display "The simulation failed: " followed by M, and SHALL show no results and no Recorded_Output.
 4. IF the response body of a run request is not valid JSON, or is not a JSON object with exactly the keys report and replayed_state, or its report value is not text that parses as an array of objects that match the Violation_Report schema in the Glossary, or its replayed_state value is neither null nor an object with the keys register, pre, and post, THEN THE Studio SHALL display "The backend returned a response the Studio cannot read. No results are shown." and SHALL show no results.
 5. IF the Backend returns an HTTP status code other than 200, 400, 409, 422, 500, or 504, THEN THE Studio SHALL display "The backend returned an unexpected status " followed by the status code, and SHALL show no results.
-6. IF a run request receives no HTTP response after the Studio's status check succeeded, THEN THE Studio SHALL display "No response arrived within 70 seconds. The Backend may still be running the simulation. No results are shown." and SHALL NOT display Recorded_Output.
-7. IF a run request returns any error response, THEN THE Studio SHALL NOT display Recorded_Output for that run.
-8. WHEN a run starts, THE Studio SHALL clear the Violation_List, the Register_Array values, and the source label from the previous run before it displays the new state.
-9. IF the Backend returns HTTP 400 with body {"error":"too_large"}, THEN THE Studio SHALL display "The snippet is larger than 200 lines or 8 KB and was not run." and SHALL show no results.
-10. IF the Backend returns HTTP 400 with body {"error":"invalid_request"}, THEN THE Studio SHALL display "The backend rejected the run request. No results are shown." and SHALL show no results.
-11. IF the Backend returns HTTP 409 with body {"error":"busy"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 7, and SHALL show no results.
-12. IF the Backend returns HTTP 504 with body {"error":"timeout"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 9, and SHALL show no results.
-13. IF the Backend returns HTTP 422 with body {"error":"parser_error"} that carries the line number and message of a Parser_Error, THEN THE Studio SHALL display the Parser_Error as Requirement 3, criterion 23 specifies, and SHALL show no Violation_List rows and no Register_Array values.
-14. IF the Backend returns HTTP 500 with a body other than {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display the message defined in criterion 4 and SHALL show no results.
+6. IF a run request returns any error response, THEN THE Studio SHALL NOT display Recorded_Output for that run.
+7. WHEN a run starts, THE Studio SHALL clear the Violation_List, the Register_Array values, and the source label from the previous run before it displays the new state.
+8. IF the Backend returns HTTP 400 with body {"error":"too_large"}, THEN THE Studio SHALL display "The snippet is larger than 200 lines or 8 KB and was not run." and SHALL show no results.
+9. IF the Backend returns HTTP 400 with body {"error":"invalid_request"}, THEN THE Studio SHALL display "The backend rejected the run request. No results are shown." and SHALL show no results.
+10. IF the Backend returns HTTP 409 with body {"error":"busy"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 7, and SHALL show no results.
+11. IF the Backend returns HTTP 504 with body {"error":"timeout"}, THEN THE Studio SHALL display the message defined in Requirement 7, criterion 9, and SHALL show no results.
+12. IF the Backend returns HTTP 422 with body {"error":"parser_error"} that carries the line number and message of a Parser_Error, THEN THE Studio SHALL display the Parser_Error as Requirement 3, criterion 23 specifies, and SHALL show no Violation_List rows and no Register_Array values.
+13. IF the Backend returns HTTP 500 with a body other than {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display the message defined in criterion 4 and SHALL show no results.
 
 ### Requirement 10: Wording and claims
 
