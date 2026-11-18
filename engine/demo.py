@@ -6,6 +6,13 @@ operation. Part 8A: run_c_source replays UART_ISR operations only, and a UART_RD
 operation raises ValueError. Part 8B2: run_c_rdr_source replays UART_RDR read operations.
 """
 
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
 from engine.bus_driver import BusDriver
 from engine.c_parser import parse
 from engine.detector import detect_rdr_double_reads, detect_violations
@@ -189,16 +196,33 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None):
 
     return reports, reports_to_json(reports)
 
-USAGE = """usage: python3 -m engine.demo
 
-The replays in this module drive the uart_ctrl RTL through cocotb, so they need the
-RTL simulator (Icarus Verilog with cocotb 2.x). This entry point does not start the
-simulator and does not print violation reports.
+DEMO_SNIPPET_NAMES = (
+    "ISR_RMW_SNIPPET",
+    "ISR_DIRECT_SNIPPET",
+    "RDR_DOUBLE_READ_SNIPPET",
+    "RDR_SINGLE_READ_SNIPPET",
+)
 
-The runnable demo is tests/test_demo.py. Install the simulator, then run make in the
-tests directory. The default target runs test_demo.py with the other uart_ctrl
-modules. Those cocotb tests replay the ISR and RDR snippets on the RTL and check the
-JSON reports.
+# Environment variable that tells tests/demo_print.py where to write its records.
+DEMO_OUTPUT_ENV = "REGSPECTRE_DEMO_OUT"
+
+# cocotb module that replays the snippets. It is not in the default list in tests/Makefile.
+DEMO_COCOTB_MODULE = "demo_print"
+
+TESTS_DIR = Path(__file__).resolve().parents[1] / "tests"
+
+USAGE = """usage: python3 -m engine.demo [run]
+
+With no argument, this message is printed and the simulator is not started.
+
+run: replays the four demo snippets on the uart_ctrl RTL through cocotb, then prints
+each snippet's name, C source and JSON report. Run it from the repo root with the
+venv active. It needs Icarus Verilog and cocotb 2.x. Any other argument prints this
+message to stderr and exits with status 2.
+
+The cocotb tests in tests/test_demo.py check the same replays. Run make in the
+tests directory to run them.
 """
 
 
@@ -209,9 +233,83 @@ def format_report(json_text):
     return json_text + "\n"
 
 
-def main():
-    print(USAGE, end="")
+def _fail(message):
+    print(f"demo run failed: {message}", file=sys.stderr)
+    return 1
+
+
+def run_demo():
+    """Replay the demo snippets on the RTL and print each snippet with its report.
+
+    Runs make in the tests directory with COCOTB_TEST_MODULES=demo_print. That
+    module writes one record per snippet to a temporary JSON file, and this
+    function prints them. Returns 0 only if make exits 0, the file holds the four
+    records in DEMO_SNIPPET_NAMES order, and each report is a JSON array. Otherwise
+    prints the reason to stderr and returns 1.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        out_path = Path(tmp) / "demo_reports.json"
+        env = dict(os.environ)
+        env[DEMO_OUTPUT_ENV] = str(out_path)
+        try:
+            proc = subprocess.run(
+                ["make", f"COCOTB_TEST_MODULES={DEMO_COCOTB_MODULE}"],
+                cwd=TESTS_DIR,
+                env=env,
+                capture_output=True,
+                text=True,
+                errors="replace",
+            )
+        except OSError as exc:
+            return _fail(f"could not run make in {TESTS_DIR}: {exc}")
+        if proc.returncode != 0:
+            sys.stderr.write(proc.stdout)
+            sys.stderr.write(proc.stderr)
+            return _fail(f"make exited with status {proc.returncode}")
+        if not out_path.is_file():
+            return _fail("the simulation finished but did not write the demo output")
+        try:
+            records = json.loads(out_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            return _fail(f"demo output could not be read as JSON: {exc}")
+        if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+            return _fail("demo output is not a list of records")
+        names = [r.get("name") for r in records]
+        if names != list(DEMO_SNIPPET_NAMES):
+            return _fail(f"expected snippets {list(DEMO_SNIPPET_NAMES)}, got {names}")
+        for record in records:
+            if not isinstance(record.get("source"), str) or not isinstance(record.get("report"), str):
+                return _fail(f"record {record['name']} has no source or report text")
+            try:
+                report = json.loads(record["report"])
+            except ValueError as exc:
+                return _fail(f"report for {record['name']} is not valid JSON: {exc}")
+            if not isinstance(report, list):
+                return _fail(f"report for {record['name']} is not a JSON array")
+        for record in records:
+            print(f"== {record['name']} ==")
+            print("C source:")
+            print(record["source"], end="")
+            print("report:")
+            print(format_report(record["report"]), end="")
+            print()
+    return 0
+
+
+def main(argv=None):
+    """Print usage with no argument, or run the demo with the run argument.
+
+    Returns the exit status.
+    """
+    args = sys.argv[1:] if argv is None else list(argv)
+    if not args:
+        print(USAGE, end="")
+        return 0
+    if args == ["run"]:
+        return run_demo()
+    print(USAGE, end="", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
