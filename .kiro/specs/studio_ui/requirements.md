@@ -24,8 +24,8 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 - **Replayed_State**: an object with the keys register, pre, and post. register is the one register that the snippet names, UART_ISR or UART_RDR. pre is the value of that register sampled before the snippet's first access to it, and post is the value sampled after its last access. Both are integers from 0 up to the register's maximum, 15 for UART_ISR and 255 for UART_RDR. The Engine measures pre and post on the uart_ctrl RTL and never assumes post. The value is null when the snippet names no register. Replayed_State is separate from the Violation_Report. It is the state of the replayed snippet in the uart_ctrl simulation, not the state of a whole chip.
 - **Unused_Cell**: a Register_Array cell whose bit index is at or above the width of the selected register.
 - **Live_Result**: a Violation_Report and its Replayed_State that the Backend produced for a run request the Studio sent during the current page session.
-- **Snapshot**: the file `web/public/demo_snapshot.json`, written by the Engine from a successful demo run.
-- **Recorded_Output**: the Demo_Snippet results that the Studio reads from the Snapshot.
+- **Snapshot**: the file `web/public/demo_snapshot.json`, written by the Engine from a successful demo run. In each record, the report value is the Violation_Report text stored as a JSON string, in the same form as the report in a Backend response.
+- **Recorded_Output**: the report and Replayed_State of a Demo_Snippet that the Studio reads from a Snapshot record, with the report stored in the same form as a Backend response.
 - **Unreachable_Backend**: the condition in which the Studio's GET /api/status request receives no HTTP response within 2 seconds.
 - **Busy_State**: the condition in which the Backend is running a Simulation, so every new run request receives HTTP 409.
 - **Timeout**: the condition in which a Simulation runs longer than 60 seconds, so the Backend stops it and returns HTTP 504.
@@ -178,17 +178,18 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 2. THE Engine SHALL write the Snapshot as a JSON object with the keys created_utc and records.
 3. THE Engine SHALL write the created_utc key as the UTC time at which the Engine writes the Snapshot, in ISO 8601 format ending in Z.
 4. THE Engine SHALL write the records key as an array of four objects in the order listed in Requirement 2, where each object has the keys name, source, report, and replayed_state, name holds the Demo_Snippet name, source holds that Demo_Snippet's C source, and replayed_state holds the Replayed_State of that Demo_Snippet from the same run, or null.
-5. THE Engine SHALL write the report value of each record as the Violation_Report JSON array that the Engine writer produced for that Demo_Snippet in the same run.
-6. IF any Demo_Snippet replay does not complete without error, THEN THE Engine SHALL write no Snapshot and leave the existing Snapshot file byte-for-byte unchanged.
-7. THE Engine SHALL write the Snapshot only in the demo run path `python3 -m engine.demo run`, and no other Engine command or Backend code path SHALL write it.
-8. THE Studio SHALL read Recorded_Output only from `web/public/demo_snapshot.json` and SHALL NOT read recorded data from any other file.
-9. WHILE the most recent GET /api/status request has received no HTTP response within 2 seconds, THE Studio SHALL treat the Backend as an Unreachable_Backend.
-10. IF the Backend is an Unreachable_Backend and the user runs a Demo_Snippet, THEN THE Studio SHALL display Recorded_Output for that Demo_Snippet, taken from the report and replayed_state of the Snapshot record whose name equals that Demo_Snippet name.
-11. WHEN the Studio displays Recorded_Output, THE Studio SHALL label the source "Recorded output, created <time>", where <time> is the created_utc value of the Snapshot, copied exactly as stored.
-12. WHILE Recorded_Output is displayed, THE Studio SHALL NOT display the word "live", in any letter case, in the source label or in any other text shown with the results.
-13. IF the most recent GET /api/status request received an HTTP response, THEN THE Studio SHALL NOT display Recorded_Output for any run.
-14. IF the Backend is an Unreachable_Backend and the user runs a User_Snippet, THEN THE Studio SHALL display "The backend is unreachable. User snippets need the backend." and SHALL NOT display Recorded_Output.
-15. IF the Backend is an Unreachable_Backend, the user runs a Demo_Snippet, and the Snapshot file is missing, cannot be parsed as JSON, or has no record with the keys name, source, report, and replayed_state for each of the four Demo_Snippet names, THEN THE Studio SHALL display "The recorded output could not be loaded." and SHALL show no results.
+5. THE Engine SHALL write the report value of each record as a JSON string that holds the Violation_Report text exactly as the Engine writer produced it for that Demo_Snippet in the same run, the same form as the report value in a Backend response under Requirement 6, criterion 7.
+6. THE Studio SHALL parse the report value of each Snapshot record with the same reader that it uses for the report string in a Backend response, and SHALL NOT use a separate reader for Recorded_Output.
+7. IF any Demo_Snippet replay does not complete without error, THEN THE Engine SHALL write no Snapshot and leave the existing Snapshot file byte-for-byte unchanged.
+8. THE Engine SHALL write the Snapshot only in the demo run path `python3 -m engine.demo run`, and no other Engine command or Backend code path SHALL write it.
+9. THE Studio SHALL read Recorded_Output only from `web/public/demo_snapshot.json` and SHALL NOT read recorded data from any other file.
+10. WHILE the most recent GET /api/status request has received no HTTP response within 2 seconds, THE Studio SHALL treat the Backend as an Unreachable_Backend.
+11. IF the Backend is an Unreachable_Backend and the user runs a Demo_Snippet, THEN THE Studio SHALL display Recorded_Output for that Demo_Snippet, taken from the report and replayed_state of the Snapshot record whose name equals that Demo_Snippet name.
+12. WHEN the Studio displays Recorded_Output, THE Studio SHALL label the source "Recorded output, created <time>", where <time> is the created_utc value of the Snapshot, copied exactly as stored.
+13. WHILE Recorded_Output is displayed, THE Studio SHALL NOT display the word "live", in any letter case, in the source label or in any other text shown with the results.
+14. IF the most recent GET /api/status request received an HTTP response, THEN THE Studio SHALL NOT display Recorded_Output for any run.
+15. IF the Backend is an Unreachable_Backend and the user runs a User_Snippet, THEN THE Studio SHALL display "The backend is unreachable. User snippets need the backend." and SHALL NOT display Recorded_Output.
+16. IF the Backend is an Unreachable_Backend, the user runs a Demo_Snippet, and the Snapshot file is missing, cannot be parsed as JSON, has no record with the keys name, source, report, and replayed_state for each of the four Demo_Snippet names, or has a record whose report value cannot be read under criterion 6 of this requirement, THEN THE Studio SHALL display "The recorded output could not be loaded." and SHALL show no results.
 
 ### Requirement 9: Error states
 
@@ -196,7 +197,7 @@ The Studio replays a small C subset. It is not a full C compiler, and it does no
 
 #### Acceptance Criteria
 
-1. IF the Backend is an Unreachable_Backend, THEN THE Studio SHALL apply the rules of Requirement 8, criteria 10 and 14.
+1. IF the Backend is an Unreachable_Backend, THEN THE Studio SHALL apply the rules of Requirement 8, criteria 11 and 15.
 2. THE Backend SHALL return HTTP 500 with body {"error":"simulation_failed","message":M} when a Simulation exits with a non-zero status, where M is one line that states the failure.
 3. IF the Backend returns HTTP 500 with body {"error":"simulation_failed","message":M}, THEN THE Studio SHALL display "The simulation failed: " followed by M, and SHALL show no results and no Recorded_Output.
 4. IF the response body of a run request is not valid JSON, or is not a JSON object with exactly the keys report and replayed_state, or its report value is not text that parses as an array of objects that match the Violation_Report schema in the Glossary, or its replayed_state value is neither null nor an object with the keys register, pre, and post, THEN THE Studio SHALL display "The backend returned a response the Studio cannot read. No results are shown." and SHALL show no results.
