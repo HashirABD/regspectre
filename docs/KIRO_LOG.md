@@ -308,3 +308,13 @@ Findings by hand. First, the handoff said uart_core tasks.md was NOT changed in 
 My own mistake: my first command in Step 59 used a grep pattern that did not match the statistics text, so it showed no counts. Step 60 fixed it.
 
 Not proven: this shows how many examples ran, not that the properties check the right thing. Why Property 4 has exactly 64 cases was not checked against its strategy. Hypothesis is randomized testing, not proof. The content of the 4 changed tasks.md lines was read in the diff but not compared line by line with the current code. Cause of nothing else is confirmed.
+
+## Parser entry point checks, Steps 62 to 64 (18 November 2026, no Kiro run, read only checks)
+
+Summary: I checked engine/c_parser.py and studio_ui requirements.md by hand for the name and error shape of the parser. No Kiro prompt was used and no repo file other than this log was changed.
+
+Findings by hand. engine/c_parser.py has one public parse function, parse(snippet), plus ParseError, SymbolError (a subclass of ParseError) and Operation. requirements.md never names the new strict entry point, it only says "the new entry point", so the name and signature must be decided in design.md. ParseError has the attributes line and message (docstring says 1 based line). A hand run of parse on two bad snippets gave SymbolError with line 1 for 'UART_ISR |= (1U << NOPE);' and line 2 when a blank line comes first, message "unknown bit 'NOPE' for UART_ISR". So the HTTP 422 body fields line and message can come from e.line and e.message.
+
+My own mistake: in Step 62 I said I suspected ParseError might have no line number. It does have one. The doubt was wrong and I should have read the class before raising it.
+
+Not proven: only one error type (unknown bit) was tried. Other error paths, errors on later lines of a longer snippet, and whether line can ever be 0 or None were not tested. Operation.c_line is int or None, so whether the requirement 15 line number always exists is not decided. Cause of nothing else is confirmed.
