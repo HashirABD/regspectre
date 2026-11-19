@@ -318,3 +318,28 @@ Findings by hand. engine/c_parser.py has one public parse function, parse(snippe
 My own mistake: in Step 62 I said I suspected ParseError might have no line number. It does have one. The doubt was wrong and I should have read the class before raising it.
 
 Not proven: only one error type (unknown bit) was tried. Other error paths, errors on later lines of a longer snippet, and whether line can ever be 0 or None were not tested. Operation.c_line is int or None, so whether the requirement 15 line number always exists is not decided. Cause of nothing else is confirmed.
+
+## 2026-11-19 - studio_ui requirements fix F (Step 68, commit 35c956f)
+
+- **Prompt summary (summary, not verbatim):** Edit only `.kiro/specs/studio_ui/requirements.md` directly without a detailing pass or subagent chain, read the file in full first, update the busy exception criterion and the `Busy_State` glossary line to reflect the user's decision that `too_large` and `invalid_request` (HTTP 400) come before `parser_error` (HTTP 422) and before `busy` (HTTP 409), keep criterion numbers unchanged, check cross-references, preserve no BOM and LF endings, and verify on disk in PowerShell. (Note: the user ran the prompt drafted by Claude in the prior chat.)
+- **Result:** `.kiro/specs/studio_ui/requirements.md` updated to 32497 bytes (up from 32242 bytes; 2 lines changed). Commit `35c956f` ("studio_ui requirements fix F: invalid and too_large before parser_error before busy (Kiro edit, checked by hand)"). Kiro reported Est. Credits Used: 3.97, elapsed 1m 41s.
+- **Verified by hand (Step 69 and Step 70):**
+  - `git status` and `git --no-pager diff --stat` confirmed only `.kiro/specs/studio_ui/requirements.md` changed (2 insertions, 2 deletions).
+  - Byte check confirmed 32497 bytes, first 3 bytes `# R` (no BOM), CR count 0.
+  - Structure script confirmed 10 requirement headings, blank line before every heading, and contiguous 1..N criterion numbering in all 10 requirements.
+  - Confirmed by hand that busy criteria are Requirement 7 criteria 1 and 2, `invalid_request` is Requirement 6 criterion 5, and `too_large` is Requirement 3 criterion 25.
+  - Diff confirmed changes only to the `Busy_State` glossary line and Requirement 7 criterion 2, matching the text of cited Requirement 3 criteria 21, 22, 25, Requirement 6 criterion 5, and Requirement 7 criterion 1.
+  - Committed and pushed cleanly as `35c956f`.
+- **Kiro choices not defined by instructions:**
+  - Placed `too_large` before `invalid_request` when both could apply.
+  - Scoped the explicit ordering only to the busy case (`WHILE a Simulation is running`), leaving the non-busy 400 vs 422 ordering unspecified in `requirements.md`.
+  - Chose EARS wording `WHILE a Simulation is running, WHEN a run request arrives`.
+- **Not proven:**
+  - Whether Kiro actually read the full file on its own (only the final file bytes and diff were verified on disk).
+  - Ordering of 400 and 422 checks when the Backend is not busy (to be settled in `design.md`).
+  - Full audit of all remaining cross-references and criterion semantics across `requirements.md` (open item 18).
+- **Mistakes named openly (Steps 66 to 68 and prior chat items 4 to 6):**
+  - Prior chat mistake 4 (trivial): Claude said the fix E log commit message would be "docs: KIRO_LOG fix E" when it was actually "docs: KIRO_LOG fix E entry", and the log's final line "Cause of nothing else is confirmed" used awkward wording.
+  - Prior chat mistake 5: Claude asked the busy ordering decision without a recommendation and in dense English, forcing the user to ask twice.
+  - Prior chat mistake 6: Claude guessed "Requirement 10" for the busy criteria without reading its heading, and Claude's Step 68 prompt also wrongly cited Requirement 8 for `invalid_request` (actually Requirement 6 criterion 5) and `too_large` (actually Requirement 3 criterion 25). Step 69 proved the true locations.
+- **Credits:** 3.97 Kiro credits (Kiro estimate).
