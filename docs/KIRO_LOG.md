@@ -343,3 +343,29 @@ Not proven: only one error type (unknown bit) was tried. Other error paths, erro
   - Prior chat mistake 5: Claude asked the busy ordering decision without a recommendation and in dense English, forcing the user to ask twice.
   - Prior chat mistake 6: Claude guessed "Requirement 10" for the busy criteria without reading its heading, and Claude's Step 68 prompt also wrongly cited Requirement 8 for `invalid_request` (actually Requirement 6 criterion 5) and `too_large` (actually Requirement 3 criterion 25). Step 69 proved the true locations.
 - **Credits:** 3.97 Kiro credits (Kiro estimate).
+
+## 2026-11-19 - studio_ui design draft and Steps 72 to 78 checks (Step 76, commit eb75f17)
+
+- **Prompt summary (summary, not verbatim):** Create only `.kiro/specs/studio_ui/design.md` directly without a detailing pass or subagent chain, after reading 11 repo files in full. Define the strict parser entry point in `engine/c_parser.py` (leaving `parse` unchanged), `Replayed_State` with RTL-measured RDR post and a negative control, atomic Snapshot writer, local FastAPI Backend outside `engine/`, Next.js Studio with one shared reader, and full test strategy. Write UTF-8 without BOM and LF endings and verify on disk in PowerShell.
+- **Result:** `.kiro/specs/studio_ui/design.md` created at 63051 bytes (911 lines, 14 H2 headings). Commit `eb75f17` ("studio_ui design draft (Kiro edit, checked by hand; open gaps O1-O5 and 4 review items)"). Kiro reported Est. Credits Used: 14.85, elapsed 36m 4s.
+- **Verified by hand (Steps 72 to 78):**
+  - Step 72: confirmed 10 headings in `requirements.md`, `broken=0` on single-criterion cross-references, and open item 17 exact location as Requirement 3 criterion 15.
+  - Steps 73 and 74: read all 231 lines of `.kiro/specs/studio_ui/requirements.md` line by line (closing open item 18); confirmed range references (`R3.1`, `R3.7`, `R3.8`, `R3.10`, `R10.9`) and `UNPARSED` lines (`R3.24`, `R6.6`, `R6.10`, `R8.4`) had no broken references.
+  - Step 75: confirmed `.kiro/specs/studio_ui/` contained only `requirements.md`. Confirmed in `engine/c_parser.py` (lines 230, 249, 251, 252) that `parse()` always sets `Operation.c_line` to a 1-based token line, never `None`. Probes confirmed `parse("")` and `parse("void h(void) {}")` both return `[]`, outside-handler statements get `handler=""`, and 3 error types (`bad_syntax_line3`, `bad_reg_line3`, `unterminated`) return 1-based `ParseError.line`.
+  - Step 77: `git status` showed only `?? .kiro/specs/studio_ui/design.md`. Confirmed 63051 bytes, 911 lines, first 3 bytes `# D` (no BOM), final byte `0a` (LF), CR count 0, and 14 H2 headings. Probes proved existing `parse()` accepts `raw_int`, `raw_idx`, `compound_or`, `uint16`, and `plain_1`. Confirmed all 4 demo snippets match Kiro's `HANDLER_OPEN` and `FORM_*` rules. Confirmed `rtl/uart_ctrl.sv` lines 26-28 (`rdata` combinational without `re`) and line 47 (`rx_valid` wins over `rdr_read` on same edge). Confirmed only `tests/demo_print.py` references `demo_print` or `REGSPECTRE_DEMO_OUT`. Found `httpx` is not installed in `~/.venv` (`httpx_installed: False`), and `conftest.py` has no ignore rule.
+  - Step 78: committed and pushed `.kiro/specs/studio_ui/design.md` cleanly as `eb75f17`.
+- **Independent review (Claude):** Revised ceiling scores from 39/50 down to 37/50 (Impact 7, Implementation 8, Design 8, Innovation 6, Presentation 8) and accepted. Claude's earlier reply text (Proven, Not proven, mistakes, Fix A details) has not been pasted into this chat yet.
+- **Not proven:**
+  - Full line-by-line dump of all 911 lines of `design.md` from disk (only Kiro's write chunks plus disk size, line count, BOM, LF, and H2 headings were verified).
+  - Whether Kiro's 6 cached files (`uart_core/design.md`, `demo.py`, `report.py`, `demo_print.py`, `tests/Makefile`, `test_no_llm.py`) matched disk completely in its session.
+  - Derived cocotb `Replayed_State` values in Section 7.3 have not been run on real RTL.
+  - Whether `pytest tests/` collects and fails on a new `tests/test_replayed_rtl.py`.
+  - Design gaps and open items O1 to O5 remain open for Fix A.
+- **Mistakes named openly:**
+  - Kiro assumed RTL `rdata` and `rx_valid` behavior in Step 76 without reading `rtl/uart_ctrl.sv` in that turn (later verified by hand in Step 77).
+  - Kiro left 4 review gaps in `design.md`: no JS line-counting rule matching Python `splitlines()`, missing non-`busy` 409 and non-`timeout` 504 rows in Section 6.5, `BOTH_REGISTERS` skipped when `parse()` fails on a later line, and listing `httpx` without checking `~/.venv`.
+  - Gemini mistake 1: before Step 73, suggested rushing past open item 18 because of time.
+  - Gemini mistake 2: Step 72 script regex missed range wording (`criteria 3 to 7`), fixed by reading the full file in Steps 73 and 74.
+  - Gemini mistake 3: Step 76 expectation wrote 10 files when the Step 76 prompt listed 11 files.
+  - Gemini mistake 4: carried forward the inflated 39/50 score without evidence until Claude's independent review lowered the ceiling to 37/50.
+- **Credits:** 14.85 Kiro credits (Kiro estimate).
