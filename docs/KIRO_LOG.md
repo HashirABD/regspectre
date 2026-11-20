@@ -431,7 +431,7 @@ Not proven: only one error type (unknown bit) was tried. Other error paths, erro
 
 ---
 
-### Tier 1 Audit Closure — `BusDriver.peek` D5 Test & Real-Server `409` Proof (Steps 134–144)
+### Tier 1 Audit Closure — `BusDriver.peek` D5 Test & Real-Server `409` Proof (Steps 134–148)
 
 - **Step 134 (Kiro, 4.62 est. credits):** Added `test_peek_does_not_clear_rdr` to `tests/test_bus_driver.py`. It is a cocotb test, so the O5 guardrail holds. It checks that `peek()` leaves `re` at 0 and does not clear `UART_RDR` across a rising edge. Commit `6af384b`. The only deleted line in that diff is the previous last line of the file, which gained a trailing newline.
 - **Step 135 (WSL verification):** Confirmed that `engine/demo.py:200` calls `bus.peek(RDR_ADDR)`, inside the `lambda` that is the default post probe of `run_c_rdr_source`. The `re.value = 0` to `1` mutation in `engine/bus_driver.py` was a temporary hand edit in the shell, reverted immediately via `git checkout` and never committed. With it applied, `test_peek_does_not_clear_rdr` failed on its `re == 0` assertion, `AssertionError: peek must not assert the read strobe, re=1`, with 6 of 7 tests in `tests/test_bus_driver.py` passing. This proves protection of the read strobe only. The later check that `UART_RDR` survives a rising edge, and the `we.value` path, were not mutated separately. Reverting the mutation restored 7/7 passing, and `pytest` gave 261/261.
@@ -439,3 +439,5 @@ Not proven: only one error type (unknown bit) was tried. Other error paths, erro
 - **`npm audit --omit=dev` (Step 135):** Reported `2 vulnerabilities (1 moderate, 1 high)`, covering 4 PostCSS advisories reached through `next`, and 0 critical. The high-severity `postcss` advisory remains open in production dependencies. It is an accepted post-hackathon risk. `npm audit fix --force` would upgrade to `next@16.4.6`, a breaking change to the tested Phase 5 build, so it was not run.
 - **Step 137 (Kiro, 4.81 est. credits):** Rewrote the Tier 1 Audit Closure section above to correct its claims (commit `5ddb7a9`).
 - **Step 141 (Kiro, 4.36 est. credits):** Committed three accuracy fixes in `1c35f44`: the `npm audit --omit=dev` wording now reads across `postcss` (high, 4 advisories) and `next` (moderate), with `next` `15.5.29` cited from `web/package-lock.json`; the Step 135 entry now records that the `re.value = 0` to `1` mutation was a temporary hand edit in the shell, reverted via `git checkout` and never committed; and the Step 137 bullet was added.
+- **Step 144 (Kiro, 4.29 est. credits):** Fixed post-run `SnippetSelector` and `RunControl` clipping in `web/app/StudioPage.tsx` (capped `headerStyle` at `30vh` and made `codeStyle` a flex column) and updated `docs/KIRO_LOG.md` (commit `f42ecb7`).
+- **Step 146 (Kiro, 4.16 est. credits):** Updated `web/components/CodePane.tsx` to a flex column with `minHeight: 120` on the `<textarea>` so the code pane fills available height without clipping controls.
