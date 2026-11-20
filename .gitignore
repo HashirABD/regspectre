@@ -4,3 +4,4 @@ node_modules/
 sim_build/
 results.xml
 *.pyc
+.kiro/specs/*/tasks.meta.json

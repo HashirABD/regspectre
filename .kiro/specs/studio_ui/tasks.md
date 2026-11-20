@@ -493,9 +493,9 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
 Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 criterion 1, Requirement 8 criterion 8, and the Replayed_State glossary entry.
 
-- [ ] 2. Phase 2: replay path and real-RTL verification
+- [x] 2. Phase 2: replay path and real-RTL verification
 
-  - [ ] 2.1 Move the demo sources into `engine/snippets.py`
+  - [x] 2.1 Move the demo sources into `engine/snippets.py`
 
     - Files: `engine/snippets.py` (new), `engine/demo.py` (imports only).
     - Requirements: 2, criteria 1 and 4; 6, criterion 10.
@@ -511,7 +511,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: `4` and the same hash as the baseline recorded before the move. Then run the cocotb `test_demo` module (task 2.9) to confirm the import still works.
 
-  - [ ] 2.2 Implement `engine/replayed_state.py` and its unit tests
+  - [x] 2.2 Implement `engine/replayed_state.py` and its unit tests
 
     - Files: `engine/replayed_state.py` (new), `tests/test_replayed_state.py` (new).
     - Requirements: Replayed_State glossary entry; 6, criterion 7; 8, criterion 4.
@@ -526,7 +526,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: all pass. This module must not import cocotb (D7).
 
-  - [ ] 2.3 Add `BusDriver.peek` to `engine/bus_driver.py`
+  - [x] 2.3 Add `BusDriver.peek` to `engine/bus_driver.py`
 
     - Files: `engine/bus_driver.py` (addition only). The `tests/bus_driver.py` path in the request does not exist. `BusDriver` is in `engine/`, which is where design 2.4 puts it.
     - Requirements: 6, criterion 7; Replayed_State glossary entry (post is measured, never assumed).
@@ -542,7 +542,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: `AST_OK`, and the deletion count is 0. The behavior is checked on the RTL in task 2.9.
 
-  - [ ] 2.4 Record ISR accesses in `run_c_source` (`engine/demo.py`)
+  - [x] 2.4 Record ISR accesses in `run_c_source` (`engine/demo.py`)
 
     - Files: `engine/demo.py`.
     - Requirements: Replayed_State glossary entry (UART_ISR pre and post); 8, criterion 4.
@@ -550,7 +550,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
     - Work: record every access in order, including READ accesses (use the value returned by `bus.read`). Set `trace["accesses"]` and `trace["replayed_state"] = isr_replayed_state(accesses)`.
     - Verification: run the existing cocotb `test_demo` module (task 2.9). All 13 tests must still pass.
 
-  - [ ] 2.5 Add the RDR probe, `rx_on_read`, and `replayed_state` to `run_c_rdr_source` (`engine/demo.py`)
+  - [x] 2.5 Add the RDR probe, `rx_on_read`, and `replayed_state` to `run_c_rdr_source` (`engine/demo.py`)
 
     - Files: `engine/demo.py`.
     - Requirements: Replayed_State glossary entry (RDR post is measured from the RTL); 6, criterion 7.
@@ -558,7 +558,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
     - Work: when `rx_on_read` is set, skip the standard pulse and drive `rx_valid=1` and `rx_data` during the commit edge of the last read only. Never replace `post` with 0 or with `pre`.
     - Verification: run the cocotb `test_demo` module again (task 2.9). All 13 tests must still pass. Then run `python3 -m engine.demo run > /dev/null && echo DEMO_RUN_OK` from the repository root; it must print `DEMO_RUN_OK`.
 
-  - [ ] 2.6 Create the shared replay module `tests/snippet_run.py`
+  - [x] 2.6 Create the shared replay module `tests/snippet_run.py`
 
     - Files: `tests/snippet_run.py` (new).
     - Requirements: 6, criterion 1; 8, criterion 8 (the module never writes the Snapshot).
@@ -574,7 +574,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: `AST_OK` and `DEMO_RUN_OK`.
 
-  - [ ] 2.7 Write the real-RTL tests `tests/test_replayed_rtl.py`
+  - [x] 2.7 Write the real-RTL tests `tests/test_replayed_rtl.py`
 
     - Files: `tests/test_replayed_rtl.py` (new).
     - Requirements: Replayed_State glossary entry; 8, criteria 4 and 5.
@@ -582,7 +582,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
     - Work: exactly seven tests. Six are value tests: `test_isr_rmw_replayed_state` (pre 9, post 0), `test_isr_direct_replayed_state` (pre 9, post 8), `test_isr_read_only_replayed_state_is_null` (null, report `[]`), `test_rdr_double_read_replayed_state` (pre 165, post 0), `test_rdr_single_read_replayed_state` (pre 165, post 0), `test_rdr_post_measured_after_rx_on_read` (pre 0, post 60). The seventh is `test_rdr_post_negative_control`, which runs both broken probes and asserts `AssertionError` in each. The module defines only `@cocotb.test()` coroutines and helpers whose names do not start with `test_` (O5 guardrail).
     - Verification: task 2.9.
 
-  - [ ] 2.8 Update `tests/Makefile`
+  - [x] 2.8 Update `tests/Makefile`
 
     - Files: `tests/Makefile` (one line only).
     - Requirements: Replayed_State glossary entry (the RTL tests run in the default target).
@@ -597,7 +597,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: exactly one changed line, and it adds `,test_replayed_rtl` to the uart_ctrl `COCOTB_TEST_MODULES` line.
 
-  - [ ] 2.9 First real RTL run and confirmation of the seven derived values
+  - [x] 2.9 First real RTL run and confirmation of the seven derived values
 
     - Files: none changed. Results are recorded in the task notes.
     - Requirements: Replayed_State glossary entry; 8, criterion 4.
@@ -614,7 +614,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
       Expected: `test_demo` passes all 13 tests. The default target runs 40 tests (33 existing and 7 new), and all pass once the seven values are confirmed.
 
-  - [ ] 2.10 O5 guardrail: collection and full pytest run
+  - [x] 2.10 O5 guardrail: collection and full pytest run
 
     - Files: none changed.
     - Requirements: none directly; this protects the existing test layout.

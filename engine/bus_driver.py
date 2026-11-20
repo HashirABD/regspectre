@@ -141,6 +141,14 @@ class BusDriver:
         d.re.value = 0
         return value, cycle
 
+    async def peek(self, addr):
+        """Return rdata without a read strobe, after the next falling edge."""
+        self.dut.addr.value = addr
+        self.dut.re.value = 0
+        self.dut.we.value = 0
+        await FallingEdge(self.dut.clk)
+        return int(self.dut.rdata.value)
+
     async def rmw(self, addr, mask, mode):
         """Read-modify-write addr.
 

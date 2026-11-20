@@ -18,18 +18,11 @@ from engine.c_parser import parse
 from engine.detector import detect_rdr_double_reads, detect_violations
 from engine.regmap import ISR_ADDR, RDR_ADDR
 from engine.report import reports_to_json
-
-# Interrupt handler that sets TX_DONE with a read-modify-write. This is the bug.
-ISR_RMW_SNIPPET = """void uart_isr(void) {
-    UART_ISR |= (1U << TX_DONE);
-}
-"""
-
-# The same handler written as a direct assignment. This form is safe.
-ISR_DIRECT_SNIPPET = """void uart_isr(void) {
-    UART_ISR = (1U << TX_DONE);
-}
-"""
+from engine.replayed_state import isr_replayed_state, rdr_replayed_state
+from engine.snippets import (
+    DEMO_SNIPPET_NAMES, DEMO_SOURCES, ISR_RMW_SNIPPET, ISR_DIRECT_SNIPPET,
+    RDR_DOUBLE_READ_SNIPPET, RDR_SINGLE_READ_SNIPPET,
+)
 
 # hw_set value applied for one edge before the snippet runs. It sets bit 0 (TX_DONE)
 # and bit 3 (OVERRUN_ERR). Bit 1 is not used because the RTL drives it from rx_valid.
@@ -64,6 +57,9 @@ async def run_c_source(dut, source, seed, trace=None):
     - "ops": one dict per WRITE or RMW with kind, reg, mask, mode, c_line, pre,
       actual and cycle.
 
+    trace also receives "accesses" (every UART_ISR access in order) and
+    "replayed_state" (isr_replayed_state of those accesses).
+
     Returns (reports, json_text), where json_text is reports_to_json(reports).
     """
     bus = BusDriver(dut, seed=seed)
@@ -77,11 +73,13 @@ async def run_c_source(dut, source, seed, trace=None):
 
     reports = []
     ops_trace = []
+    accesses = []
     for op in parse(source):
         if op.reg != "UART_ISR":
             raise ValueError(f"part 8A replays UART_ISR only, got {op.reg}")
         if op.kind == "READ":
-            await bus.read(ISR_ADDR)
+            value, _ = await bus.read(ISR_ADDR)
+            accesses.append({"kind": "READ", "pre": value, "post": value})
             continue
         if op.kind == "WRITE":
             pre, _ = await bus.read(ISR_ADDR)
@@ -91,6 +89,7 @@ async def run_c_source(dut, source, seed, trace=None):
         else:
             raise ValueError(f"unknown operation kind {op.kind!r}")
         actual, _ = await bus.read(ISR_ADDR)
+        accesses.append({"kind": op.kind, "pre": pre, "post": actual})
         reports.extend(detect_violations(op, pre=pre, actual=actual, cycle=cycle))
         ops_trace.append(
             {
@@ -108,29 +107,17 @@ async def run_c_source(dut, source, seed, trace=None):
     if trace is not None:
         trace["hw_log"] = list(bus.hw_log)
         trace["ops"] = ops_trace
+        trace["accesses"] = accesses
+        trace["replayed_state"] = isr_replayed_state(accesses)
 
     return reports, reports_to_json(reports)
-
-# Interrupt handler that reads UART_RDR twice. The second read sees the register that
-# the first read cleared, so the received data is lost. This is the read-to-clear bug.
-RDR_DOUBLE_READ_SNIPPET = """void uart_rdr_twice(void) {
-    uint8_t first = UART_RDR;
-    uint8_t second = UART_RDR;
-}
-"""
-
-# Interrupt handler that reads UART_RDR once. This is the safe form.
-RDR_SINGLE_READ_SNIPPET = """void uart_rdr_once(void) {
-    uint8_t first = UART_RDR;
-}
-"""
 
 # Data driven onto rx_data with rx_valid high for one edge before an RDR replay.
 # 0xA5 is 1010_0101, so bits 0, 2, 5 and 7 are set. Every UART_RDR bit is read-to-clear.
 RDR_RX_DATA = 0xA5
 
 
-async def run_c_rdr_source(dut, source, seed=None, trace=None):
+async def run_c_rdr_source(dut, source, seed=None, trace=None, post_probe=None, rx_on_read=None):
     """Replay a UART_RDR read snippet on the RTL and return (reports, json_text).
 
     The clock must already be running.
@@ -143,6 +130,13 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None):
     exactly one rising edge, and rx_valid is then lowered. BusDriver does not drive
     rx_valid or rx_data, so this is driven directly from dut. hw_set bit 1 is never
     driven here.
+
+    post_probe: an async callable that returns an int. None means the real probe,
+    bus.peek(RDR_ADDR), sampled after the commit edge of the last read.
+
+    rx_on_read: an int byte or None. When it is set, the standard RDR_RX_DATA pulse
+    is skipped. rx_valid is raised with rx_data=rx_on_read for the commit edge of the
+    last READ only, then lowered.
 
     Every READ operation is replayed with BusDriver.read, in program order. For each
     read:
@@ -159,24 +153,36 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None):
     If trace is a dict, it is filled with:
     - "hw_log": the driver hw_log for this run, as (cycle, value) pairs.
     - "reads": one dict per READ with reg, handler, c_line, value and cycle.
+    - "replayed_state": rdr_replayed_state(pre, post), where pre is the first read's
+      value and post is the value returned by the probe.
 
     Returns (reports, json_text), where json_text is reports_to_json(reports).
     """
     bus = BusDriver(dut, seed=seed)
     await bus.reset()
 
-    dut.rx_data.value = RDR_RX_DATA
-    dut.rx_valid.value = 1
-    await bus.idle(1)
-    dut.rx_valid.value = 0
+    ops = parse(source)
+    last_read = max((i for i, op in enumerate(ops) if op.kind == "READ"), default=None)
+
+    if rx_on_read is None:
+        dut.rx_data.value = RDR_RX_DATA
+        dut.rx_valid.value = 1
+        await bus.idle(1)
+        dut.rx_valid.value = 0
 
     reads = []
     reads_trace = []
-    for op in parse(source):
+    for i, op in enumerate(ops):
         if op.kind != "READ":
             raise ValueError(f"RDR replay supports READ operations only, got {op.kind}")
         addr = RDR_ADDR if op.reg == "UART_RDR" else ISR_ADDR
+        is_last = rx_on_read is not None and i == last_read
+        if is_last:
+            dut.rx_data.value = rx_on_read
+            dut.rx_valid.value = 1
         value, cycle = await bus.read(addr)
+        if is_last:
+            dut.rx_valid.value = 0
         reads.append((op, value, cycle))
         reads_trace.append(
             {
@@ -190,19 +196,20 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None):
 
     reports = detect_rdr_double_reads(reads)
 
+    if not reads:
+        raise ValueError("RDR replay needs at least one READ operation")
+    pre = reads[0][1]
+    probe = post_probe if post_probe is not None else (lambda: bus.peek(RDR_ADDR))
+    post = await probe()
+    replayed_state = rdr_replayed_state(pre, post)
+
     if trace is not None:
         trace["hw_log"] = list(bus.hw_log)
         trace["reads"] = reads_trace
+        trace["replayed_state"] = replayed_state
 
     return reports, reports_to_json(reports)
 
-
-DEMO_SNIPPET_NAMES = (
-    "ISR_RMW_SNIPPET",
-    "ISR_DIRECT_SNIPPET",
-    "RDR_DOUBLE_READ_SNIPPET",
-    "RDR_SINGLE_READ_SNIPPET",
-)
 
 # Environment variable that tells tests/demo_print.py where to write its records.
 DEMO_OUTPUT_ENV = "REGSPECTRE_DEMO_OUT"
