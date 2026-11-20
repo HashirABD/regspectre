@@ -428,3 +428,10 @@ Not proven: only one error type (unknown bit) was tried. Other error paths, erro
 - **Step 124 (Kiro, 3.95 est. credits):** Updated `.kiro/specs/studio_ui/tasks.md` to mark Task `5.12` and parent Task `5.` as `[x]` (zero unchecked tasks remaining).
 - **Known accepted risk (`npm audit --omit=dev`):** Reports 2 vulnerabilities (1 high, 1 moderate) in `postcss` via `next` (`15.5.29`). `npm audit fix --force` is intentionally not run because it upgrades to `next@16.4.6` (breaking change to the tested Phase 5 build). Studio only builds local CSS; upgrading Next.js is deferred to post-hackathon maintenance.
 - **Correction note (line 355):** The earlier claim that only `tests/demo_print.py` referenced `demo_print` was inaccurate; `engine/demo.py` also referenced it.
+
+---
+
+### Tier 1 Audit Closure — `BusDriver.peek` D5 Test & Real-Server `409` Proof (Steps 134–136)
+
+- **Step 134 (Kiro, 4.62 est. credits):** Added `test_peek_does_not_clear_rdr` to `tests/test_bus_driver.py` (proving `peek()` keeps `re == 0` and does not clear `UART_RDR` across a rising edge; O5 guardrail preserved).
+- **Step 135 (WSL verification):** Confirmed `engine/demo.py:200` calls `bus.peek(RDR_ADDR)`. Mutating `re.value = 1` in `engine/bus_driver.py` caused `test_peek_does_not_clear_rdr` to FAIL (`AssertionError: peek must not assert the read strobe, re=1`, `6/7`); reverting restored `7/7` PASS and `261/261` pytest. Real `uvicorn` `409 busy` passed 3/3 trials with lock release (`AFTER_BUSY_REQ3=HTTP=200` in all 3 trials). `npm audit --omit=dev` confirmed only 2 `postcss` advisories via `next` (no `critical`).
