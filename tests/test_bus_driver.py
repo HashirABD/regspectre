@@ -139,3 +139,26 @@ async def test_seed_determinism(dut):
     await plain.idle(5)
     assert plain.hw_log == [], f"unseeded driver should log nothing, got {plain.hw_log}"
     assert int(dut.hw_set.value) == 0, "unseeded driver should keep hw_set at 0"
+
+
+@cocotb.test()
+async def test_peek_does_not_clear_rdr(dut):
+    """peek() leaves re low and does not clear UART_RDR, even across a rising edge."""
+    bus = BusDriver(dut)
+    await bus.start()
+
+    # Load UART_RDR with 0xA5: rx_valid high for exactly one rising edge
+    dut.rx_data.value = 0xA5
+    dut.rx_valid.value = 1
+    await RisingEdge(dut.clk)
+    dut.rx_valid.value = 0
+
+    first = await bus.peek(RDR_ADDR)
+    assert first == 0xA5, f"peek should return the loaded UART_RDR, got {first:#x}"
+    assert int(dut.re.value) == 0, f"peek must not assert the read strobe, re={int(dut.re.value)}"
+
+    await RisingEdge(dut.clk)
+    assert int(dut.re.value) == 0, "re must stay low across a rising edge after peek"
+
+    second = await bus.peek(RDR_ADDR)
+    assert second == 0xA5, f"peek must not clear UART_RDR; after a rising edge got {second:#x}"
