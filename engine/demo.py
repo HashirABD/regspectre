@@ -6,12 +6,7 @@ operation. Part 8A: run_c_source replays UART_ISR operations only, and a UART_RD
 operation raises ValueError. Part 8B2: run_c_rdr_source replays UART_RDR read operations.
 """
 
-import json
-import os
-import subprocess
 import sys
-import tempfile
-from pathlib import Path
 
 from engine.bus_driver import BusDriver
 from engine.c_parser import parse
@@ -23,6 +18,9 @@ from engine.snippets import (
     DEMO_SNIPPET_NAMES, DEMO_SOURCES, ISR_RMW_SNIPPET, ISR_DIRECT_SNIPPET,
     RDR_DOUBLE_READ_SNIPPET, RDR_SINGLE_READ_SNIPPET,
 )
+from datetime import datetime, timezone
+from engine.sim_runner import SimulationBusy, SimulationFailed, run_replays
+from engine.snapshot import SNAPSHOT_PATH, build_snapshot, write_snapshot_atomic
 
 # hw_set value applied for one edge before the snippet runs. It sets bit 0 (TX_DONE)
 # and bit 3 (OVERRUN_ERR). Bit 1 is not used because the RTL drives it from rx_valid.
@@ -211,14 +209,6 @@ async def run_c_rdr_source(dut, source, seed=None, trace=None, post_probe=None, 
     return reports, reports_to_json(reports)
 
 
-# Environment variable that tells tests/demo_print.py where to write its records.
-DEMO_OUTPUT_ENV = "REGSPECTRE_DEMO_OUT"
-
-# cocotb module that replays the snippets. It is not in the default list in tests/Makefile.
-DEMO_COCOTB_MODULE = "demo_print"
-
-TESTS_DIR = Path(__file__).resolve().parents[1] / "tests"
-
 USAGE = """usage: python3 -m engine.demo [run]
 
 With no argument, this message is printed and the simulator is not started.
@@ -246,60 +236,32 @@ def _fail(message):
 
 
 def run_demo():
-    """Replay the demo snippets on the RTL and print each snippet with its report.
+    """Replay the four demo snippets through run_replays, validate them, write the Snapshot, and print each record.
 
-    Runs make in the tests directory with COCOTB_TEST_MODULES=demo_print. That
-    module writes one record per snippet to a temporary JSON file, and this
-    function prints them. Returns 0 only if make exits 0, the file holds the four
-    records in DEMO_SNIPPET_NAMES order, and each report is a JSON array. Otherwise
-    prints the reason to stderr and returns 1.
+    Returns 0 only when the replays, the Snapshot checks, and the Snapshot write all succeed.
+    A busy lock or a failed replay prints a message and returns 1, and nothing is written.
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        out_path = Path(tmp) / "demo_reports.json"
-        env = dict(os.environ)
-        env[DEMO_OUTPUT_ENV] = str(out_path)
-        try:
-            proc = subprocess.run(
-                ["make", f"COCOTB_TEST_MODULES={DEMO_COCOTB_MODULE}"],
-                cwd=TESTS_DIR,
-                env=env,
-                capture_output=True,
-                text=True,
-                errors="replace",
-            )
-        except OSError as exc:
-            return _fail(f"could not run make in {TESTS_DIR}: {exc}")
-        if proc.returncode != 0:
-            sys.stderr.write(proc.stdout)
-            sys.stderr.write(proc.stderr)
-            return _fail(f"make exited with status {proc.returncode}")
-        if not out_path.is_file():
-            return _fail("the simulation finished but did not write the demo output")
-        try:
-            records = json.loads(out_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            return _fail(f"demo output could not be read as JSON: {exc}")
-        if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
-            return _fail("demo output is not a list of records")
-        names = [r.get("name") for r in records]
-        if names != list(DEMO_SNIPPET_NAMES):
-            return _fail(f"expected snippets {list(DEMO_SNIPPET_NAMES)}, got {names}")
-        for record in records:
-            if not isinstance(record.get("source"), str) or not isinstance(record.get("report"), str):
-                return _fail(f"record {record['name']} has no source or report text")
-            try:
-                report = json.loads(record["report"])
-            except ValueError as exc:
-                return _fail(f"report for {record['name']} is not valid JSON: {exc}")
-            if not isinstance(report, list):
-                return _fail(f"report for {record['name']} is not a JSON array")
-        for record in records:
-            print(f"== {record['name']} ==")
-            print("C source:")
-            print(record["source"], end="")
-            print("report:")
-            print(format_report(record["report"]), end="")
-            print()
+    runs = [{"name": name, "source": source} for name, source in DEMO_SOURCES]
+    try:
+        records = run_replays(runs, timeout_s=None)
+    except SimulationBusy:
+        print("another simulation is running", file=sys.stderr)
+        return 1
+    except SimulationFailed as exc:
+        return _fail(exc.message)
+    created_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        payload = build_snapshot(records, created_utc)
+        write_snapshot_atomic(SNAPSHOT_PATH, payload)
+    except (ValueError, OSError) as exc:
+        return _fail(f"the snapshot could not be written: {exc}")
+    for record in records:
+        print(f"== {record['name']} ==")
+        print("C source:")
+        print(record["source"], end="")
+        print("report:")
+        print(format_report(record["report"]), end="")
+        print()
     return 0
 
 

@@ -1,0 +1,45 @@
+{
+  "created_utc": "2026-11-20T09:14:17Z",
+  "records": [
+    {
+      "name": "ISR_RMW_SNIPPET",
+      "source": "void uart_isr(void) {\n    UART_ISR |= (1U << TX_DONE);\n}\n",
+      "report": "[\n  {\n    \"register\": \"UART_ISR\",\n    \"bit\": 3,\n    \"intended\": 1,\n    \"actual\": 0,\n    \"cycle\": 3,\n    \"c_line\": 2\n  }\n]",
+      "replayed_state": {
+        "register": "UART_ISR",
+        "pre": 9,
+        "post": 0
+      }
+    },
+    {
+      "name": "ISR_DIRECT_SNIPPET",
+      "source": "void uart_isr(void) {\n    UART_ISR = (1U << TX_DONE);\n}\n",
+      "report": "[]",
+      "replayed_state": {
+        "register": "UART_ISR",
+        "pre": 9,
+        "post": 8
+      }
+    },
+    {
+      "name": "RDR_DOUBLE_READ_SNIPPET",
+      "source": "void uart_rdr_twice(void) {\n    uint8_t first = UART_RDR;\n    uint8_t second = UART_RDR;\n}\n",
+      "report": "[\n  {\n    \"register\": \"UART_RDR\",\n    \"bit\": 0,\n    \"intended\": 1,\n    \"actual\": 0,\n    \"cycle\": 3,\n    \"c_line\": 3\n  },\n  {\n    \"register\": \"UART_RDR\",\n    \"bit\": 2,\n    \"intended\": 1,\n    \"actual\": 0,\n    \"cycle\": 3,\n    \"c_line\": 3\n  },\n  {\n    \"register\": \"UART_RDR\",\n    \"bit\": 5,\n    \"intended\": 1,\n    \"actual\": 0,\n    \"cycle\": 3,\n    \"c_line\": 3\n  },\n  {\n    \"register\": \"UART_RDR\",\n    \"bit\": 7,\n    \"intended\": 1,\n    \"actual\": 0,\n    \"cycle\": 3,\n    \"c_line\": 3\n  }\n]",
+      "replayed_state": {
+        "register": "UART_RDR",
+        "pre": 165,
+        "post": 0
+      }
+    },
+    {
+      "name": "RDR_SINGLE_READ_SNIPPET",
+      "source": "void uart_rdr_once(void) {\n    uint8_t first = UART_RDR;\n}\n",
+      "report": "[]",
+      "replayed_state": {
+        "register": "UART_RDR",
+        "pre": 165,
+        "post": 0
+      }
+    }
+  ]
+}

@@ -637,7 +637,7 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
 - [ ] 3. Phase 3: engine Snapshot and runner
 
-  - [ ] 3.1 Implement `engine/snapshot.py` and its tests
+  - [x] 3.1 Implement `engine/snapshot.py` and its tests
 
     - Files: `engine/snapshot.py` (new), `tests/test_snapshot.py` (new).
     - Requirements: 8, criteria 1 to 8.
@@ -654,7 +654,7 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
       Expected: the tests pass. The `grep` lists only `engine/snapshot.py`, with no other file.
 
-  - [ ] 3.2 Implement `engine/sim_runner.py` and its tests
+  - [x] 3.2 Implement `engine/sim_runner.py` and its tests
 
     - Files: `engine/sim_runner.py` (new), `tests/test_sim_runner.py` (new), `.gitignore` (one line added).
     - Requirements: 7, criteria 1, 3, and 8; 6, criterion 2; 8, criterion 7.
@@ -672,7 +672,7 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
       Expected: tests pass. The print shows `snippet_run .sim.lock`, and `git check-ignore -v` prints the `.gitignore` line that matches `tests/.sim.lock`.
 
-  - [ ] 3.3 Update `engine/demo.py` to use the runner and the Snapshot writer
+  - [x] 3.3 Update `engine/demo.py` to use the runner and the Snapshot writer
 
     - Files: `engine/demo.py`, `tests/demo_print.py` (deleted; approved as O3, D2, C2).
     - Requirements: 8, criteria 1, 2, 4, 5, 7 and 8; 6, criterion 1.

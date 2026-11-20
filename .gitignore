@@ -5,3 +5,4 @@ sim_build/
 results.xml
 *.pyc
 .kiro/specs/*/tasks.meta.json
+tests/.sim.lock
