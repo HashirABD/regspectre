@@ -12,7 +12,7 @@ studio_ui adds five parts to RegSpectre. Each part has one owner.
 
 Scope: the uart_ctrl block only, the C subset only, Icarus Verilog through cocotb. The waveform view and the one-click auto fix are not designed here. Only their reserved places appear in the layout.
 
-The engine stays deterministic Python. No component makes an LLM call.
+The engine stays deterministic Python. No component makes an LLM call. This spec implements the local 127.0.0.1 architecture that Requirement 6 requires. Docker and public cloud deployment are scheduled for a separate Deployment spec, after studio_ui works and is tested locally (D8).
 
 ## Decisions
 
@@ -25,6 +25,7 @@ The engine stays deterministic Python. No component makes an LLM call.
 | D5 | The RDR post value is sampled with `BusDriver.peek`, which does not assert a read strobe. | A read clears UART_RDR. The probe must not clear it. |
 | D6 | The simulation lock is a `threading.Lock` in the Backend plus `flock` on `tests/.sim.lock`. The CLI uses the same file lock. | The CLI and the Backend cannot both use `tests/sim_build` at once. |
 | D7 | `engine/replayed_state.py`, `engine/snapshot.py`, `engine/sim_runner.py` and `engine/snippets.py` do not import cocotb. | The Backend and the unit tests can import them without a simulator. |
+| D8 | `studio_ui` implements the local 127.0.0.1 architecture that Requirement 6 requires. Docker and public cloud deployment (a configurable bind host, configurable CORS origins, and a `BACKEND_URL` environment variable) are scheduled for a separate Deployment spec, after studio_ui works and is tested locally. | Requirement 6 fixes the bind address and the CORS origins to localhost. Changing them is a deployment decision, outside this spec. |
 
 ## File map
 
@@ -41,7 +42,7 @@ The engine stays deterministic Python. No component makes an LLM call.
 | `tests/demo_print.py` | deleted | Replaced by `tests/snippet_run.py`. |
 | `tests/test_replayed_rtl.py` | new | cocotb tests on the real RTL, including the negative control. |
 | `tests/Makefile` | changed | One line: the uart_ctrl `COCOTB_TEST_MODULES` gets `test_replayed_rtl` appended. |
-| `tests/test_strict_parser.py`, `tests/test_replayed_state.py`, `tests/test_snapshot.py`, `tests/test_sim_runner.py`, `tests/test_backend_api.py`, `tests/test_backend_no_llm.py`, `tests/test_web_static.py` | new | pytest tests. No simulator needed. |
+| `tests/test_strict_parser.py`, `tests/test_count_lines.py`, `tests/test_replayed_state.py`, `tests/test_snapshot.py`, `tests/test_sim_runner.py`, `tests/test_backend_api.py`, `tests/test_backend_no_llm.py`, `tests/test_web_static.py` | new | pytest tests. No simulator needed. |
 | `backend/__init__.py`, `backend/validation.py`, `backend/app.py`, `backend/requirements.txt` | new | Local FastAPI Backend. |
 | `web/` (Next.js app, components, lib, tests) | new | The Studio. See section 6. |
 | `web/public/demo_snapshot.json` | written by the engine | Never hand-written. |
@@ -91,9 +92,11 @@ Input: `snippet`. Output: the list from `parse()`, or a `ParseError`.
 
 **Step 2, line scan.** Run `_scan_lines(snippet.splitlines())`. It returns `has_handler` and a list of `(line, message)` errors. Each scan error has priority 2.
 
+*Note on U+2028.* Step 2 calls `_scan_lines(snippet.splitlines())` on purpose. Line 84 of `engine/c_parser.py` (`_tokenize`) also uses `splitlines()` for its line numbers. That file cannot be edited, so the scan must split the same way to report the same line numbers. The `count_lines` rule in Section 5.4 splits only on `\n`, after normalizing `\r\n` and `\r`. So a snippet that contains U+2028 counts as 1 line for the 200-line size check, but it splits into 2 lines for parser and line-scan numbering. This divergence is intended. Section 7.1 tests it.
+
 **Step 3, no handler.** If `has_handler` is false, add the candidate `(1, 1, NO_HANDLER)`.
 
-**Step 4, two registers.** If `ops` is non-empty, find the first op whose `reg` differs from `ops[0].reg`. If one exists, add the candidate `(op.c_line, 2, BOTH_REGISTERS)`. `c_line` is always an int of at least 1 for parsed ops.
+**Step 4, two registers.** Handled by the line scan (the `REG_NAME` rule in `_scan_lines`), not here. This step adds no candidate, so it cannot conflict with the scan. A later `parse()` error cannot hide an earlier second register.
 
 **Step 5, choose.** Pick the candidate with the smallest `(line, priority)` and raise `ParseError(line, message)`. If there are no candidates, return `ops` unchanged.
 
@@ -101,11 +104,12 @@ The priority breaks ties on the same line. A `parse()` error beats the no-handle
 
 `_scan_lines(lines)`:
 
-- State: `inside = False`, `open_line = 0`, `has_handler = False`, `errors = []`.
+- State: `inside = False`, `open_line = 0`, `has_handler = False`, `errors = []`, `first_reg = None`, `both_reported = False`.
 - For each line `raw` with 1-based number `n`:
   - `code = _strip_comments(raw).strip()`. `_strip_comments` is `re.sub(r"/\*.*?\*/", " ", raw).split("//", 1)[0]`, the same rule the tokenizer in `parse()` uses.
   - If `code` is empty, continue.
   - If `/*` or `*/` remains in `code`, add `(n, BLOCK_COMMENT)` and continue.
+  - If `inside` is true, find every match, in order, of `REG_NAME` (`\b(UART_ISR|UART_RDR)\b`) in `code`. The first match sets `first_reg`. The first match whose name differs from `first_reg` adds `(n, BOTH_REGISTERS)` with priority 2 and sets `both_reported = True`. When `both_reported` is already true, add nothing. This check runs on every line inside a handler, including lines that also have a form error. It is the only place this candidate is made.
   - If `code` fully matches `HANDLER_EMPTY`, set `has_handler = True`. If `inside` is true, add `(n, NESTED)`. Continue.
   - If `code` fully matches `HANDLER_OPEN`, add `(n, NESTED)` when `inside` is true. Set `inside = True`, `open_line = n`, `has_handler = True`. Continue.
   - If `code == "}"`: when `inside`, set `inside = False`; otherwise add `(n, STRAY_BRACE)`. Continue.
@@ -115,22 +119,27 @@ The priority breaks ties on the same line. A `parse()` error beats the no-handle
   - Otherwise add `(n, _reject_message(code))`.
 - After the loop, if `inside` is still true, add `(open_line, NOT_CLOSED)`.
 
-Patterns (`re.fullmatch` on `code`). `W` stands for `(?:TX_DONE|PARITY_ERR|OVERRUN_ERR)`:
+Patterns, compiled once in `engine/c_parser.py`. The form and handler patterns are used with `fullmatch` on `code`. The search patterns are used with `search`.
 
-| Name | Pattern |
-|---|---|
-| FORM_ASSIGN | `UART_ISR\s*=\s*\(\s*1U\s*<<\s*W\s*\)\s*;` |
-| FORM_OR | `UART_ISR\s*\|=\s*\(\s*1U\s*<<\s*W\s*\)\s*;` |
-| FORM_AND | `UART_ISR\s*&=\s*~\s*\(\s*1U\s*<<\s*W\s*\)\s*;` |
-| FORM_DECL | `(?:uint8_t\|uint32_t)\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR\|RDR)\s*;` |
-| HANDLER_OPEN | `void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{` |
-| HANDLER_EMPTY | `void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{\s*\}` |
+```python
+import re
 
-Search patterns used by `_reject_message`:
+W = r"(?:TX_DONE|PARITY_ERR|OVERRUN_ERR)"
 
-- `RDR_WRITE`: `UART_RDR\s*[|&]?=`
-- `ISR_WRITE`: `UART_ISR\s*[|&]?=`
-- `REG_DECL_OTHER`: `\w+\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR|RDR)\s*;`. This catches `uint16_t` and other types, because valid declarations matched FORM_DECL earlier.
+FORM_ASSIGN   = re.compile(r"UART_ISR\s*=\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_OR       = re.compile(r"UART_ISR\s*\|=\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_AND      = re.compile(r"UART_ISR\s*&=\s*~\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_DECL     = re.compile(r"(?:uint8_t|uint32_t)\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR|RDR)\s*;")
+HANDLER_OPEN  = re.compile(r"void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{")
+HANDLER_EMPTY = re.compile(r"void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{\s*\}")
+
+RDR_WRITE      = re.compile(r"UART_RDR\s*[|&]?=")
+ISR_WRITE      = re.compile(r"UART_ISR\s*[|&]?=")
+REG_DECL_OTHER = re.compile(r"\w+\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR|RDR)\s*;")
+REG_NAME       = re.compile(r"\b(UART_ISR|UART_RDR)\b")
+```
+
+In each pattern, a `|` is either the escaped literal `\|` (for `|=`) or an alternation `|` (for `uint8_t|uint32_t`, `ISR|RDR`, and the `W` group). Raw string literals keep the two meanings separate.
 
 `_reject_message(code)` returns the first match:
 
@@ -162,6 +171,7 @@ Message constants, all defined in `engine/c_parser.py`:
 | `"void h(void) {\n UART_ISR \|= (1U << RX_READY);\n}"` | `ParseError(2, RX_READY message)` | Scan error. |
 | `"void h(void) {\n UART_ISR = 5;\n}"` | `ParseError(2, UART_ISR write message)` | Scan error. |
 | `"void h(void) {\n UART_ISR = (1U << TX_DONE);\n uint8_t d = UART_RDR;\n}"` | `ParseError(3, BOTH_REGISTERS)` | Second register is on line 3. |
+| `"void h(void) {\n UART_ISR = (1U << TX_DONE);\n uint8_t d = UART_RDR;\n for (;;) {}\n}"` | `ParseError(3, BOTH_REGISTERS)` | Parse fails later on line 4 (loop). The line scan still reports the earlier second register on line 3. |
 | `"void h(void) {\n for (;;) {}\n}"` | `ParseError(2, loop message from parse)` | Parse error on line 2. |
 | `"for (;;) {}"` | `ParseError(1, loop message from parse)` | Parse error and no handler, both on line 1. The parse error wins the tie. |
 | `"void h(void) { UART_ISR = (1U << TX_DONE); }"` | `ParseError(1, HEADER_FORM)` | One-line handler with a statement is rejected. The header counts as a handler, so NO_HANDLER does not apply. |
@@ -185,7 +195,7 @@ An accepted snippet returns the list object from `parse()`. The strict layer nev
 | 12 (unknown register) | `parse()` raises SymbolError. |
 | 13 (RX_READY, other bit names, raw indexes, raw constants) | FORM patterns only accept TX_DONE, PARITY_ERR and OVERRUN_ERR with `1U`. |
 | 14 (no handler) | Step 3, line 1. |
-| 15 (both registers) | Step 4, on the first op naming the second register. |
+| 15 (both registers) | Line scan, `REG_NAME` rule: the first line inside a handler that names the second register. |
 | 16 (outside a handler) | `_scan_lines` OUTSIDE. |
 | 17 (first rejected statement only) | Step 5 returns one error. |
 | 18 (1-based line, line 1 with no handler) | `_safe_line` and Step 3. |
@@ -265,7 +275,7 @@ async def peek(self, addr):
     return int(self.dut.rdata.value)
 ```
 
-`peek` does not clear anything. `rdata` is combinational from `addr` and the register state, and `re` is not involved. Call it right after the last access's commit edge, so the value is the state after that commit. `FallingEdge` is already imported in `bus_driver.py`.
+`peek` does not clear anything. `rdata` is combinational from `addr` and the register state, and `re` is not involved. In `rtl/uart_ctrl.sv`, lines 26 to 28 assign `rdata` from `sel_isr`, `sel_rdr`, `isr` and `rdr` only, with no `re` term. Call it right after the last access's commit edge, so the value is the state after that commit. `FallingEdge` is already imported in `bus_driver.py`.
 
 ### 2.5 Dispatch in the shared replay module (`tests/snippet_run.py`)
 
@@ -280,7 +290,7 @@ The module uses quiet runs only (seed None). Its only file output is the path in
 
 ### 2.6 Negative control for the RDR post sample
 
-The control is in `tests/test_replayed_rtl.py`, in `test_rdr_post_negative_control`. Its purpose is to show that a replay which assumes a post value fails the check.
+The control is in `tests/test_replayed_rtl.py`, in `test_rdr_post_negative_control`. Its purpose is to show that a replay which assumes a post value fails the check. In `rtl/uart_ctrl.sv` line 47, `rdr_next = rx_valid ? rx_data : (rdr_read ? 8'd0 : rdr)`, so `rx_valid` wins over `rdr_read` on the same edge. Scenario A depends on that rule: its post value is 60, not 0.
 
 A helper, `assert_rdr_post(state, expected_post)`, raises `AssertionError` when `state["post"] != expected_post`. The test runs two scenarios:
 
@@ -391,7 +401,7 @@ def flock_held() -> bool: ...
 
 `flock_held()` opens `LOCK_PATH`, tries `LOCK_EX | LOCK_NB`, and returns True on `BlockingIOError`. Otherwise it unlocks and returns False. The descriptor is always closed.
 
-The 60-second Backend budget covers the whole `make` run. That includes a rebuild of `sim.vvp` when the RTL changed. This is a choice, listed in section 9.
+The 60-second Backend budget covers the whole `make` run. That includes a rebuild of `sim.vvp` when the RTL changed. Measured on this repository (reported by the user): a cold `make clean` build plus the four-snippet `python3 -m engine.demo run` took 1.85 s (exit 0), and a warm run took 1.60 s (exit 0). That is a margin of more than 30 times inside the 60-second budget (O2 closed).
 
 ## 5. Backend (`backend/`)
 
@@ -403,6 +413,8 @@ The 60-second Backend budget covers the whole `make` run. That includes a rebuil
 | `backend/validation.py` | Pure request validation. Imports no FastAPI. |
 | `backend/app.py` | The FastAPI app, routes, CORS, the simulation lock. |
 | `backend/requirements.txt` | `fastapi`, `uvicorn`, and `httpx` (for `TestClient` in tests). |
+
+`httpx` is not installed in `~/.venv` at present (reported). Install it from `backend/requirements.txt` before running `tests/test_backend_api.py`.
 
 The Backend is outside `engine/` (D1). The engine scan in `tests/test_no_llm.py` stays on the engine files only, so it passes unchanged. The Backend imports `engine.c_parser`, `engine.snippets`, `engine.sim_runner`, and `engine.replayed_state`. The engine never imports `backend`.
 
@@ -426,7 +438,16 @@ The `POST /api/run` body is a JSON object with exactly one key: `snippet` (a Dem
 
 `validate_run_request(raw: bytes) -> RunRequest | ErrorReply` is a pure function. It runs three steps, and the app runs the fourth.
 
-**Step 1, too_large (HTTP 400).** Decode the body as UTF-8 JSON. If it is an object whose `c_source` is a string, and that string is more than 8192 UTF-8 bytes, or `len(c_source.splitlines()) > 200`, return 400 `{"error":"too_large"}`. Requirement 3, criterion 25.
+**Step 1, too_large (HTTP 400).** Decode the body as UTF-8 JSON. If it is an object whose `c_source` is a string, and that string is more than 8192 UTF-8 bytes, or `count_lines(c_source) > 200`, return 400 `{"error":"too_large"}`. Requirement 3, criterion 25.
+
+`count_lines(text)` is the single line-counting rule. Python implements it in `backend/validation.py`. JavaScript implements it as `countLines` in `web/lib/snippetState.ts`. Both use the same four steps:
+
+1. If `text` is empty, return 0.
+2. Replace each `\r\n` with `\n`, then each remaining `\r` with `\n`.
+3. If the result ends with `\n`, remove that one trailing `\n`.
+4. Split on `\n` only, and return the number of parts. Python uses `len(text.split("\n"))`. JavaScript uses `text.split("\n").length`.
+
+The rule does not use Python `str.splitlines()`. That method also splits on VT, FF, NEL and U+2028 (LINE SEPARATOR), but JavaScript does not. A U+2028 inside a line therefore counts as one line in both languages.
 
 **Step 2, invalid_request (HTTP 400).** Return 400 `{"error":"invalid_request"}` when any of these holds:
 - The body is not valid JSON, or it is not an object.
@@ -549,7 +570,7 @@ Each exported function returns `{ ok: true, value }` or `{ ok: false }`. None th
 - `parseRunBody(text: string)`. The text must be a JSON object with exactly the keys `report` and `replayed_state`. `report` goes through `parseReportText`, and `replayed_state` goes through `parseReplayedState`. Returns `{ violations, replayed }`.
 - `parseSnapshot(text: string)`. The text must be a JSON object with exactly the keys `created_utc` and `records`. `created_utc` matches `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`. `records` has four objects whose names are in DEMO order. Each record has exactly the keys `name`, `source`, `report`, `replayed_state`. `source` is a string. `report` and `replayed_state` go through the same functions as above. Returns `{ createdUtc, records }`.
 - `parseSnippetList(text: string)`. A JSON array of four objects `{name, source}`, in DEMO order.
-- `parseErrorResponse(status: number, text: string)`. Returns a typed reply for a non-200 response (6.5). Never throws.
+- `parseErrorResponse(status: number, text: string)`. Returns a typed reply for a non-200 response (6.5). Never throws. A 409 whose body is not `{"error":"busy"}`, and a 504 whose body is not `{"error":"timeout"}`, return the unreadable reply. That reply maps to `CANNOT_READ` (Requirement 9, criterion 4), with no results and no recorded output.
 
 Rules: no `eval` and no dynamic code. Text from the Backend is only rendered as text. It is cut to 500 characters, and newlines are replaced with spaces.
 
@@ -604,11 +625,13 @@ Outcome of `POST /api/run`:
 | 400 `too_large` | `TOO_LARGE` (Requirement 9, criterion 8). |
 | 400 `invalid_request`, or any other 400 body | `REJECTED` (Requirement 9, criterion 9). Treating other 400 bodies this way is a choice. |
 | 409 `busy` | `BUSY` (Requirement 7, criterion 7). |
+| 409, other body | `CANNOT_READ` (Requirement 9, criterion 4). |
 | 422 `parser_error` with a valid line and message | `"Line " + line + ": " + message` (Requirement 3, criterion 23). |
 | 422, other body | `CANNOT_READ` (Requirement 9, criterion 4). |
 | 500 `simulation_failed` with a message | `SIMULATION_FAILED_PREFIX + message` (Requirement 9, criterion 3). |
 | 500, other body | `CANNOT_READ` (Requirement 9, criterion 13). |
 | 504 `timeout` | `TIMEOUT` (Requirement 7, criterion 9). |
+| 504, other body | `CANNOT_READ` (Requirement 9, criterion 4). |
 | any other status | `UNEXPECTED_STATUS_PREFIX + status` (Requirement 9, criterion 5). |
 
 No error response ever produces recorded output (Requirement 9, criterion 6). Recorded output appears only on the unreachable path, which means the latest status request had no HTTP response.
@@ -628,6 +651,7 @@ Initial code: once the ISR_RMW source is known, the code pane holds it and ISR_R
 
 - `demoNameFor(code, selected, sources)` returns `selected` when `sources[selected] === code`, using exact string equality. Otherwise it returns `null` (Requirement 2, criteria 5 and 7).
 - `runBody(code, demoName)` returns `{snippet: demoName}` when `demoName` is not null, otherwise `{c_source: code}` (Requirement 2, criterion 6).
+- `countLines(text)` in `web/lib/snippetState.ts` implements the rule in 5.4. The client-side size check in 6.5 uses `countLines(code) > 200` and the UTF-8 byte length above 8192.
 - After an edit, the selector keeps its selection. The name label disappears, because the text no longer matches the source (Requirement 2, criterion 5).
 
 ### 6.8 Run control (`web/components/RunControl.tsx`)
@@ -761,7 +785,8 @@ Run control is disabled while the backend state is `unknown`. Recorded output is
 
 | File | Covers |
 |---|---|
-| `tests/test_strict_parser.py` | `parse_user_snippet`: each error type (loop, if/else, ternary, call, pointer, UART_RDR write, unknown register, unknown bit, RX_READY, raw constant, raw index, compound expression, `uint16_t`, no handler, empty text, statement outside a handler, both registers, block comment, header form, unclosed handler). Line numbers and the precedence table in 1.4. An empty handler returns `[]`. Equality with `parse()` for accepted inputs. The four demo sources are accepted. Hypothesis: for any text, the result is either a list equal to `parse()` output, or a `ParseError` with an int line of at least 1 and a str message. Hypothesis: snippets generated from the accepted forms equal `parse()` output and never raise. |
+| `tests/test_strict_parser.py` | `parse_user_snippet`: each error type (loop, if/else, ternary, call, pointer, UART_RDR write, unknown register, unknown bit, RX_READY, raw constant, raw index, compound expression, `uint16_t`, no handler, empty text, statement outside a handler, both registers, block comment, header form, unclosed handler). Line numbers and the precedence table in 1.4, including the line-scan case in which a second register on line 3 is reported before a loop on line 4 (`ParseError(3, BOTH_REGISTERS)`). An empty handler returns `[]`. U+2028 divergence (intended): a snippet made of `void h(void) {`, a literal U+2028 character, ` UART_ISR = (1U << TX_DONE);`, another U+2028 character, and `}` has `count_lines` equal to 1, but `parse_user_snippet` accepts it and the WRITE op has c_line 2, because `splitlines()` splits on U+2028. The same snippet with ` for (;;) {}` in place of the statement gives `ParseError(2, loop message)`. Equality with `parse()` for accepted inputs. The four demo sources are accepted. Hypothesis: for any text, the result is either a list equal to `parse()` output, or a `ParseError` with an int line of at least 1 and a str message. Hypothesis: snippets generated from the accepted forms equal `parse()` output and never raise. |
+| `tests/test_count_lines.py` | `count_lines` in Python and `countLines` in Vitest (section 7.4), on the same inputs and with the same results: empty text gives 0; `x` gives 1; a trailing `\n` gives 1; `\r\n` gives 1; a lone `\r` gives 1; `\n\n` gives 2; U+2028 between two words gives 1, not 2; 200 lines gives 200 and is accepted; 201 lines gives 201 and is rejected by the Backend and by the Studio. |
 | `tests/test_replayed_state.py` | `isr_replayed_state`: empty gives None, reads only gives None, write pre and post, read then write takes pre from the read, RMW. `rdr_replayed_state`. `validate_replayed_state`: bool values rejected, UART_ISR pre 16 rejected, UART_RDR post 256 rejected, None accepted, wrong keys rejected. |
 | `tests/test_snapshot.py` | `build_snapshot`: schema, order, wrong names rejected. `write_snapshot_atomic` success. Failure with `os.replace` monkeypatched to raise: the original bytes are kept and the temp file is removed. Invalid records: the file is untouched, and a missing file stays missing. The literal `demo_snapshot.json` appears only in `engine/snapshot.py`. |
 | `tests/test_sim_runner.py` | `run_replays` with `MAKE_COMMAND` replaced by a fake script: success writes the result, a non-zero exit gives `SimulationFailed` with the last stderr line, a timeout kills the whole process group (a fake child process must be gone afterwards), a held lock gives `SimulationBusy`, and the lock is free again after each case. |
@@ -773,6 +798,8 @@ The existing `tests/test_no_llm.py`, `tests/test_engine_unit.py`, and `tests/tes
 ### 7.2 Backend API (`tests/test_backend_api.py`, FastAPI `TestClient`)
 
 `run_replays` is replaced by fakes in these tests.
+
+Before running this file, install `httpx` from `backend/requirements.txt`. It is not installed in `~/.venv` at present (reported). Without it, FastAPI's `TestClient` cannot be imported.
 
 - Order matrix: every combination of busy or not busy, with oversized, bad field, parser error, and valid requests. Each one gets the status and body from section 5.4.
 - A valid request while busy gets 409 `{"error":"busy"}`. A bad name gets 400. An oversized snippet gets 400. A parser error gets 422.
@@ -787,10 +814,13 @@ The existing `tests/test_no_llm.py`, `tests/test_engine_unit.py`, and `tests/tes
 - CORS: a preflight from `http://localhost:3000` gets the allow-origin header. A preflight from another origin gets none.
 - The Snapshot path, patched to a temp file, is not created or changed by any run.
 - The text `0.0.0.0` appears nowhere in `backend/`.
+- Line-count boundaries: 200 lines pass, and 201 lines give 400 `too_large`. The inputs match `tests/test_count_lines.py`, including a U+2028 line separator, which must count as one line.
 
 ### 7.3 Real RTL (cocotb): `tests/test_replayed_rtl.py`
 
 The module is added to the uart_ctrl `COCOTB_TEST_MODULES` line in `tests/Makefile`. The default count goes from 33 to 40, because there are seven new tests. Every test uses quiet runs.
+
+Guardrail (O5, mitigated on paper, pending the Makefile change and the first run): `tests/test_replayed_rtl.py` may define only `@cocotb.test()` coroutines, and helpers whose names do not start with `test_`. Existing cocotb modules expose only `@cocotb.test()` coroutines. With no `pytest.ini`, `pyproject.toml`, or `setup.cfg`, `pytest --collect-only -q tests/` collected 100 tests cleanly (reported by the user). After adding the module to the Makefile list, run `pytest tests/` again to confirm that collection stays clean.
 
 | Test | Input | Expected Replayed_State |
 |---|---|---|
@@ -808,10 +838,10 @@ These expected values are derived from the next-state rules in `rtl/uart_ctrl.sv
 
 | File | Covers |
 |---|---|
-| `web/__tests__/reader.test.ts` | `parseReportText`: valid array, `c_line` absent, `c_line` 0 rejected, UART_RDR bit 8 rejected, `intended` 2 rejected, extra key rejected. `parseReplayedState`: null accepted, UART_ISR pre 16 rejected. `parseRunBody`: exact keys. `parseSnapshot`: wrong order rejected, bad `created_utc` rejected, a record with a bad report rejected by the same reader. `parseErrorResponse`: each status, each body shape, and non-JSON text without throwing. |
+| `web/__tests__/reader.test.ts` | `parseReportText`: valid array, `c_line` absent, `c_line` 0 rejected, UART_RDR bit 8 rejected, `intended` 2 rejected, extra key rejected. `parseReplayedState`: null accepted, UART_ISR pre 16 rejected. `parseRunBody`: exact keys. `parseSnapshot`: wrong order rejected, bad `created_utc` rejected, a record with a bad report rejected by the same reader. `parseErrorResponse`: each status, each body shape, and non-JSON text without throwing. A 409 whose body is not `{"error":"busy"}`, and a 504 whose body is not `{"error":"timeout"}`, both return the unreadable reply, which maps to `CANNOT_READ`, with no results and no recorded output. |
 | `web/__tests__/registerCells.test.ts` | 32 cells. UART_ISR cells 4 to 31 are unused, with no 0, no 1, and no violation, replayed, or "no violation reported" text. UART_RDR cells 8 to 31 are unused. Empty `shown` gives labels only. `replayed` null gives "not replayed". A register mismatch gives "not replayed". A flagged cell lists its pairs in array order and is marked. An unflagged cell shows "no violation reported". Pre and post bit values. |
-| `web/__tests__/runState.test.ts` | Every row of the outcome table in 6.5. 409 and 504 show no results. Unreachable demo shows recorded output with the exact label. Unreachable user shows the message and no recorded output. Error bodies never produce recorded output. `no_response` shows the 70-second message and no recorded output. |
-| `web/__tests__/snippetState.test.ts` | Demo derivation by exact equality. One changed character makes a user snippet. Run body shapes. The size limit at exactly 200 and 201 lines, and at 8192 and 8193 bytes. |
+| `web/__tests__/runState.test.ts` | Every row of the outcome table in 6.5. 409 and 504 show no results. Unreachable demo shows recorded output with the exact label. Unreachable user shows the message and no recorded output. Error bodies never produce recorded output. A 409 with a body other than busy, and a 504 with a body other than timeout, each show `CANNOT_READ` with no results and no recorded output. `no_response` shows the 70-second message and no recorded output. |
+| `web/__tests__/snippetState.test.ts` | Demo derivation by exact equality. One changed character makes a user snippet. Run body shapes. The `countLines` cases from 7.1, with the same inputs and results as the Python function, including U+2028 counting as one line. The size limit at exactly 200 and 201 lines, and at 8192 and 8193 bytes. |
 | `web/__tests__/poller.test.ts` (fake timers) | The next request starts 1000 ms after the previous one. A request aborted at 2000 ms gives `unreachable`. A non-200 response gives `reachable`. |
 | `web/__tests__/disclaimers.test.tsx` | The five disclaimers are always rendered. The two replayed notes appear only when replayed state is shown. |
 | `web/__tests__/recordedText.test.tsx` | Renders the recorded state. No text node matches `/live/i`. |
@@ -877,7 +907,7 @@ One change, to the uart_ctrl `COCOTB_TEST_MODULES` line: append `,test_replayed_
 ## 9. Choices made where the requirements are silent
 
 - C1. The Backend lives in `backend/`, outside `engine/`, so the existing no-LLM scan stays unchanged.
-- C2. `tests/demo_print.py` is retired. One replay module, `tests/snippet_run.py`, serves the demo CLI and the Backend. Requirement 6, criterion 1 says "the demo run path" for the snippet field. This design reads that as the shared replay path, not as the CLI.
+- C2. `tests/demo_print.py` is retired. One replay module, `tests/snippet_run.py`, serves the demo CLI and the Backend. Requirement 6, criterion 1 says "the demo run path" for the snippet field. This design reads that as the shared replay path, not as the CLI. Approved (O4).
 - C3. The strict parser is a line matcher on top of `parse()`. One statement per line. Only `1U` as the constant. One-line handlers with a statement are rejected.
 - C4. An empty handler and an empty snippet are told apart by a `void` header line. Both give `parse()` the value `[]`.
 - C5. Where a no-handler error and another error both sit on line 1, the parse error wins, then the no-handler error, then the scan errors.
@@ -885,8 +915,8 @@ One change, to the uart_ctrl `COCOTB_TEST_MODULES` line: append `,test_replayed_
 - C7. A body that is not valid JSON, or that has extra keys, gets invalid_request.
 - C8. Any 400 body that is neither too_large nor invalid_request shows the REJECTED message.
 - C9. An unexpected exception in the Backend's run path gives 500 `simulation_failed` with the text "the backend hit an unexpected error".
-- C10. The 60-second run budget covers the whole `make` run, including a rebuild of `sim.vvp` when the RTL changed.
-- C11. A network failure before any response during a run shows the 70-second NO_RESPONSE message. That message says "within 70 seconds" even when the failure was immediate. Section 10 lists this for review.
+- C10. The 60-second run budget covers the whole `make` run, including a rebuild of `sim.vvp` when the RTL changed. Measured timing is in section 4 (O2 closed).
+- C11. A network failure before any response during a run shows the 70-second NO_RESPONSE message. That message says "within 70 seconds" even when the failure was immediate. Accepted as a limitation (O1 closed).
 - C12. A non-200 status response counts as reachable, with busy set to false.
 - C13. The snapshot is used for sources only if the whole file passes `parseSnapshot`.
 - C14. For UART_ISR, pre comes from the first access, which may be a read, and post comes from the last access.
@@ -900,12 +930,20 @@ One change, to the uart_ctrl `COCOTB_TEST_MODULES` line: append `,test_replayed_
 - C22. Vitest and React Testing Library are used. No package version is fixed here.
 - C23. Each unused cell shows the word "unused" and nothing else.
 - C24. A request body with unknown extra keys is rejected, as in C7.
+- C25. The two-register check is done by the line scan (`REG_NAME`), not after `parse()`, so a later parse error cannot hide an earlier second-register line.
 
-## 10. Open items for review
+## 10. Open items
 
-- O1. Requirement 7, criterion 10 says "within 70 seconds", and the message says the same. A network failure that happens immediately is shown with that message too (C11). The message could be split, but the requirement lists one message only.
-- O2. The 60-second budget (C10) includes the `make` build step. If builds are slow, the budget may need to change.
-- O3. Deleting `tests/demo_print.py` (D2, C2) is a file removal. It needs approval.
-- O4. Requirement 6, criterion 1 names "the demo run path" for the snippet field. Section 9 (C2) reads it as the shared replay path. This needs confirmation.
-- O5. Once `tests/test_replayed_rtl.py` is in the default list, `pytest tests/` may collect it, as with the existing cocotb modules. That behavior was not verified in this session.
+### Resolved
 
+- O1. Closed as an accepted limitation. Requirement 7, criterion 10 specifies one NO_RESPONSE message for no response during a run. Keeping choice C11 avoids reopening a locked requirement.
+- O2. Closed. Measured on this repository: a cold `make clean` build plus the four-snippet `python3 -m engine.demo run` took 1.85 s (exit 0). A warm run took 1.60 s (exit 0). The margin is more than 30 times inside the 60-second budget.
+- O3. Approved. Deleting `tests/demo_print.py` (D2, C2).
+- O4. Approved. `tests/snippet_run.py` is the single shared replay path for Requirement 6, criterion 1 and for the demo CLI (C2).
+- O5. Mitigated on paper, pending Makefile change (guardrail in section 7.3). `pytest --collect-only -q tests/` collected 100 tests cleanly, with no `pytest.ini`, `pyproject.toml`, or `setup.cfg` (reported by the user). The rules for `tests/test_replayed_rtl.py`, and the re-check after adding it, are in 7.3.
+
+### Remaining verification (not yet run)
+
+- Confirm the seven expected cocotb Replayed_State values in section 7.3 on the first real RTL run. The values are derived from the rules in `rtl/uart_ctrl.sv` (lines 26 to 28 for `rdata`, line 47 for `rdr_next`), not from a run.
+- Install `httpx` from `backend/requirements.txt` before running `tests/test_backend_api.py`. It is not installed in `~/.venv` at present (reported).
+- Run the `count_lines` tests in Python and Vitest, and the line-scan case for `BOTH_REGISTERS` in section 1.4, once the implementation exists.
