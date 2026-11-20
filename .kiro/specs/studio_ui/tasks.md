@@ -937,7 +937,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all tests pass. The tests check that unused cells never contain 0, 1, a violation, a replayed value, or "no violation reported".
 
-  - [ ] 5.6 Implement the outcome mapping `web/lib/runState.ts` and its tests
+  - [x] 5.6 Implement the outcome mapping `web/lib/runState.ts` and its tests
 
     - Files: `web/lib/runState.ts` (new), `web/__tests__/runState.test.ts` (new).
     - Requirements: 7, criteria 6 to 10; 8, criteria 11, 12, 14, 15, 16; 9, criteria 3 to 13; 3, criteria 23 and 24.
@@ -952,7 +952,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: every row of the 6.5 table has a passing test. Error bodies never produce a `recorded` result.
 
-  - [ ] 5.7 Implement the client `web/lib/api.ts` and the poller `web/lib/poller.ts` and their tests
+  - [x] 5.7 Implement the client `web/lib/api.ts` and the poller `web/lib/poller.ts` and their tests
 
     - Files: `web/lib/api.ts` (new), `web/lib/poller.ts` (new), `web/__tests__/poller.test.ts` (new).
     - Requirements: 7, criteria 4, 5 and 6; 8, criteria 10 and 14.
@@ -967,7 +967,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all tests pass.
 
-  - [ ] 5.8 Implement source loading `web/lib/sources.ts`
+  - [x] 5.8 Implement source loading `web/lib/sources.ts`
 
     - Files: `web/lib/sources.ts` (new).
     - Requirements: 2, criteria 1, 3, 7, 8, 9 and 10.
@@ -975,7 +975,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
     - Work: `fetchSnippets` first, then `loadSnapshot` and `parseSnapshot` for each name still missing. If the selected name has no source, the code pane shows `SOURCES_UNAVAILABLE`.
     - Verification: design 7.4 has no dedicated test for this module. Cover it in task 5.11 (the manual smoke check). Note this gap in the task report.
 
-  - [ ] 5.9 Implement the components and the page layout
+  - [x] 5.9 Implement the components and the page layout
 
     - Files: `web/components/CodePane.tsx`, `web/components/SnippetSelector.tsx`, `web/components/RunControl.tsx`, `web/components/RegisterArray.tsx`, `web/components/ViolationList.tsx`, `web/components/WaveformPlaceholder.tsx`, `web/components/Disclaimers.tsx`, `web/components/Message.tsx`, `web/app/StudioPage.tsx` (new). The files in `web/components/` and `web/app/StudioPage.tsx` are new.
     - Requirements: 1, criteria 1 to 7; 2, criteria 1 to 6; 4, criteria 1 to 7; 5, criteria 1 to 16; 7, criteria 4 and 5; 10, criteria 1 to 11.
@@ -992,7 +992,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: both `_OK` lines print.
 
-  - [ ] 5.10 Component tests for disclaimers, recorded text, and the violation list
+  - [x] 5.10 Component tests for disclaimers, recorded text, and the violation list
 
     - Files: `web/__tests__/disclaimers.test.tsx`, `web/__tests__/recordedText.test.tsx`, `web/__tests__/violationList.test.tsx` (all new).
     - Requirements: 10, criteria 1 to 11; 8, criterion 13; 4, criteria 1 to 7; 1, criteria 5 to 7.
@@ -1007,7 +1007,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all pass.
 
-  - [ ] 5.11 Static check of the Studio source `tests/test_web_static.py`
+  - [x] 5.11 Static check of the Studio source `tests/test_web_static.py`
 
     - Files: `tests/test_web_static.py` (new).
     - Requirements: 6, criterion 9 (the localhost origins); 10, criterion 7 is not affected.

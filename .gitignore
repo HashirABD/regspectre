@@ -6,3 +6,6 @@ results.xml
 *.pyc
 .kiro/specs/*/tasks.meta.json
 tests/.sim.lock
+web/.next/
+web/next-env.d.ts
+*.tsbuildinfo

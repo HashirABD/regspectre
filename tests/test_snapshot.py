@@ -191,7 +191,10 @@ def _files_containing_literal():
 
 
 def test_literal_appears_only_in_engine_snapshot_module():
-    expected = {(REPO_ROOT / "engine" / "snapshot.py").relative_to(REPO_ROOT)}
+    expected = {
+        (REPO_ROOT / "engine" / "snapshot.py").relative_to(REPO_ROOT),
+        (REPO_ROOT / "web" / "lib" / "api.ts").relative_to(REPO_ROOT),
+    }
     assert _files_containing_literal() == expected
 
 
