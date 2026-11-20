@@ -635,7 +635,7 @@ Decisions D2, D5, D7 apply. Design sections 2.1 to 2.7, 8.1, 8.3. Requirement 6 
 
 Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 criteria 1 to 8.
 
-- [ ] 3. Phase 3: engine Snapshot and runner
+- [x] 3. Phase 3: engine Snapshot and runner
 
   - [x] 3.1 Implement `engine/snapshot.py` and its tests
 
@@ -692,7 +692,7 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
       Expected: `IMPORT_OK`, the usage text with `exit=0`, `AST_OK`, `DELETED`, and `NO_REFERENCES`.
 
-  - [ ] 3.4 Generate `web/public/demo_snapshot.json` through the engine
+  - [x] 3.4 Generate `web/public/demo_snapshot.json` through the engine
 
     - Files: `web/public/demo_snapshot.json` (written by the engine only; never edited by hand).
     - Requirements: 8, criteria 1 to 5.
@@ -708,7 +708,7 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
       Expected: `exit=0` and `SNAPSHOT_OK` followed by the four replayed states.
 
-  - [ ] 3.5 Confirm the Snapshot is not touched by any other path
+  - [x] 3.5 Confirm the Snapshot is not touched by any other path
 
     - Files: none changed.
     - Requirements: 6, criterion 2; 8, criteria 7 and 8.
@@ -729,9 +729,9 @@ Decisions D6 and D7 apply. Design sections 3.1 to 3.2, 4, 8.2. Requirement 8 cri
 
 Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 criteria 21 to 25, Requirement 6 criteria 1 to 11, Requirement 7 criteria 1 to 3 and 8.
 
-- [ ] 4. Phase 4: Backend in `backend/`, bound to 127.0.0.1 only
+- [x] 4. Phase 4: Backend in `backend/`, bound to 127.0.0.1 only
 
-  - [ ] 4.1 Create `backend/requirements.txt` and install the packages into `~/.venv`
+  - [x] 4.1 Create `backend/requirements.txt` and install the packages into `~/.venv`
 
     - Files: `backend/requirements.txt` (new).
     - Requirements: 6, criteria 3 and 9.
@@ -748,7 +748,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: the three package names are listed, the install finishes without errors, and `DEPS_OK` prints with three versions.
 
-  - [ ] 4.2 Implement `backend/__init__.py` and `backend/validation.py`
+  - [x] 4.2 Implement `backend/__init__.py` and `backend/validation.py`
 
     - Files: `backend/__init__.py` (empty, new), `backend/validation.py` (new). This module imports no FastAPI.
     - Requirements: 3, criteria 21, 22, 24, 25; 6, criteria 4, 5, 6.
@@ -764,7 +764,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: `AST_OK`, then `0 1 1 1 2 1`.
 
-  - [ ] 4.3 Write the count-line tests `tests/test_count_lines.py`
+  - [x] 4.3 Write the count-line tests `tests/test_count_lines.py`
 
     - Files: `tests/test_count_lines.py` (new).
     - Requirements: 3, criteria 24 and 25.
@@ -779,7 +779,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: all pass.
 
-  - [ ] 4.4 Implement `backend/app.py`
+  - [x] 4.4 Implement `backend/app.py`
 
     - Files: `backend/app.py` (new).
     - Requirements: 6, criteria 1 to 11; 7, criteria 1 to 3 and 8; 3, criteria 21 and 22.
@@ -796,7 +796,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: `AST_OK`, the route list includes `/api/status`, `/api/snippets`, and `/api/run`, and `NO_WILDCARD_BIND`.
 
-  - [ ] 4.5 Write the Backend API tests `tests/test_backend_api.py`
+  - [x] 4.5 Write the Backend API tests `tests/test_backend_api.py`
 
     - Files: `tests/test_backend_api.py` (new). Requires `httpx` from task 4.1.
     - Requirements: 6, criteria 1 to 11; 7, criteria 1 to 3 and 8; 3, criteria 21, 22, 24, 25.
@@ -811,7 +811,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: all pass.
 
-  - [ ] 4.6 Write the Backend static check `tests/test_backend_no_llm.py`
+  - [x] 4.6 Write the Backend static check `tests/test_backend_no_llm.py`
 
     - Files: `tests/test_backend_no_llm.py` (new). It imports the scanner from `tests/test_no_llm.py` and leaves that file unchanged.
     - Requirements: 6, criterion 8.
@@ -826,7 +826,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
       Expected: all pass, and `tests/test_no_llm.py` is unchanged (`git diff --stat -- tests/test_no_llm.py` is empty).
 
-  - [ ] 4.7 Manual smoke check of the Backend (user terminal)
+  - [x] 4.7 Manual smoke check of the Backend (user terminal)
 
     - Files: none changed.
     - Requirements: 6, criteria 3, 4, 5, 10, 11.

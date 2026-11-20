@@ -484,7 +484,7 @@ async def post_run(request: Request):
     if not SIM_LOCK.acquire(blocking=False):       # Step 4
         return busy_response()
     try:
-        records = await run_in_threadpool(run_replays, [checked.as_run()], RUN_TIMEOUT_S)
+        records = await run_in_threadpool(run_replays, checked.as_run(), RUN_TIMEOUT_S)
     except SimulationBusy:
         return busy_response()
     except SimulationTimeout:
