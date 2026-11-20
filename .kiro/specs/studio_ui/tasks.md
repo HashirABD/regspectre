@@ -852,7 +852,7 @@ Decisions D1, D3, D6 apply. Design sections 5.1 to 5.7, 7.2, 7.5. Requirement 3 
 
 Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1 to 10 (Studio side). The Studio never calls the Backend except through `BACKEND_URL` (design 6.15).
 
-- [ ] 5. Phase 5: Next.js Studio with pure logic first, then components
+- [x] 5. Phase 5: Next.js Studio with pure logic first, then components
 
   - [x] 5.1 Scaffold the Next.js app and the test tooling
 
@@ -1022,7 +1022,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all pass.
 
-  - [ ] 5.12 Final local end-to-end verification checklist
+  - [x] 5.12 Final local end-to-end verification checklist
 
     - Files: none changed.
     - Requirements: all ten requirements.

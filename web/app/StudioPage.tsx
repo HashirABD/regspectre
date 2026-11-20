@@ -27,14 +27,18 @@ const WAVEFORM_HEIGHT = 200;
 const mainStyle: CSSProperties = {
   display: "grid",
   gridTemplateAreas: '"header header" "code results" "waveform waveform"',
+  gridTemplateRows: `auto minmax(0, 1fr) ${WAVEFORM_HEIGHT}px`,
   gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
   gap: 16,
   padding: 16,
+  height: "100vh",
+  boxSizing: "border-box",
+  overflow: "hidden",
 };
 
 const headerStyle: CSSProperties = { gridArea: "header" };
-const codeStyle: CSSProperties = { gridArea: "code", minWidth: 0 };
-const resultsStyle: CSSProperties = { gridArea: "results", minWidth: 0 };
+const codeStyle: CSSProperties = { gridArea: "code", minWidth: 0, minHeight: 0, overflow: "auto" };
+const resultsStyle: CSSProperties = { gridArea: "results", minWidth: 0, minHeight: 0, overflow: "auto" };
 const waveformStyle: CSSProperties = { gridArea: "waveform", height: WAVEFORM_HEIGHT };
 
 export default function StudioPage() {
