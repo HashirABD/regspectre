@@ -392,11 +392,11 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
 ## Phase 1: Engine strict parser (`engine/c_parser.py`)
 
-- [ ] 1. Phase 1: add the strict parser entry point to `engine/c_parser.py`
+- [x] 1. Phase 1: add the strict parser entry point to `engine/c_parser.py`
 
   The existing `parse()` and `_tokenize()` functions stay exactly as they are, including the `splitlines()` call on line 84. All new code is additive. Decisions D4 and D7 apply. Design sections 1.1 to 1.8. Requirement 3, criteria 1 to 20.
 
-  - [ ] 1.1 Add message constants and compiled patterns
+  - [x] 1.1 Add message constants and compiled patterns
 
     - Files: `engine/c_parser.py` (additions only).
     - Requirements: 3, criteria 1, 3 to 8, 13, 19.
@@ -413,7 +413,7 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
       Expected: `AST_OK`; the print shows `['UART_ISR', 'UART_RDR'] True`; the `numstat` deletion count is 0.
 
-  - [ ] 1.2 Implement `_strip_comments`, `_scan_lines`, and `_reject_message`
+  - [x] 1.2 Implement `_strip_comments`, `_scan_lines`, and `_reject_message`
 
     - Files: `engine/c_parser.py`.
     - Requirements: 3, criteria 9, 10, 13, 14, 16, 17, 18, 19.
@@ -428,7 +428,7 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
       Expected: `has_handler` is `True`, and the first error is `(3, BOTH_REGISTERS message)`. Line 4 is also reported, but it comes after line 3.
 
-  - [ ] 1.3 Implement `parse_user_snippet`
+  - [x] 1.3 Implement `parse_user_snippet`
 
     - Files: `engine/c_parser.py`.
     - Requirements: 3, criteria 2, 14, 15, 17, 18, 20.
@@ -445,7 +445,7 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
       Expected: `[]` followed by `ParseError 1 no handler definition: ...`.
 
-  - [ ] 1.4 Write unit tests for the error types, the precedence table, and the U+2028 divergence
+  - [x] 1.4 Write unit tests for the error types, the precedence table, and the U+2028 divergence
 
     - Files: `tests/test_strict_parser.py` (new). Copy the four demo sources into this file as literals. Do not import `engine.demo`, because it imports cocotb.
     - Requirements: 3, criteria 1 to 20.
@@ -460,7 +460,7 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
       Expected: all tests pass.
 
-  - [ ] 1.5 Add property tests (Hypothesis)
+  - [x] 1.5 Add property tests (Hypothesis)
 
     - Files: `tests/test_strict_parser.py`.
     - Requirements: 3, criterion 20.
@@ -475,7 +475,7 @@ The checkbox tasks are grouped into five phases. Each phase depends on the phase
 
       Expected: pass. These are randomized checks, so they are evidence, not proof (design 7.7).
 
-  - [ ] 1.6 Phase 1 regression gate
+  - [x] 1.6 Phase 1 regression gate
 
     - Files: none changed.
     - Work: confirm the existing engine tests still pass with their files unchanged.

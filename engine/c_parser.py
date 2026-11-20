@@ -49,6 +49,30 @@ _TOKEN_RE = re.compile(
 )
 
 
+NO_HANDLER = "no handler definition: a User_Snippet must contain void NAME(void) { ... }"
+OUTSIDE = "statement outside a handler definition"
+BOTH_REGISTERS = "a User_Snippet may name only one register, UART_ISR or UART_RDR"
+BLOCK_COMMENT = "block comments must open and close on the same line"
+NESTED = "handler definitions cannot be nested"
+STRAY_BRACE = "'}' without an open handler definition"
+HEADER_FORM = "handler header must be void NAME(void) { with each statement on its own line"
+NOT_CLOSED = "handler definition is not closed with '}'"
+
+W = r"(?:TX_DONE|PARITY_ERR|OVERRUN_ERR)"
+
+FORM_ASSIGN   = re.compile(r"UART_ISR\s*=\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_OR       = re.compile(r"UART_ISR\s*\|=\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_AND      = re.compile(r"UART_ISR\s*&=\s*~\s*\(\s*1U\s*<<\s*" + W + r"\s*\)\s*;")
+FORM_DECL     = re.compile(r"(?:uint8_t|uint32_t)\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR|RDR)\s*;")
+HANDLER_OPEN  = re.compile(r"void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{")
+HANDLER_EMPTY = re.compile(r"void\s+[A-Za-z_]\w*\s*\(\s*void\s*\)\s*\{\s*\}")
+
+RDR_WRITE      = re.compile(r"UART_RDR\s*[|&]?=")
+ISR_WRITE      = re.compile(r"UART_ISR\s*[|&]?=")
+REG_DECL_OTHER = re.compile(r"\w+\s+[A-Za-z_]\w*\s*=\s*UART_(?:ISR|RDR)\s*;")
+REG_NAME       = re.compile(r"\b(UART_ISR|UART_RDR)\b")
+
+
 class ParseError(Exception):
     """An unsupported or malformed construct. Names the 1-based line."""
 
@@ -334,3 +358,117 @@ def parse(snippet):
     register or bit names. Both carry the 1-based line in .line.
     """
     return _Parser(_tokenize(snippet)).program()
+
+
+def _strip_comments(raw):
+    return re.sub(r"/\*.*?\*/", " ", raw).split("//", 1)[0]
+
+
+def _reject_message(code):
+    if RDR_WRITE.search(code):
+        return "UART_RDR is read-to-clear and cannot be written"
+    if ISR_WRITE.search(code) and re.search(r"\bRX_READY\b", code):
+        return (
+            "RX_READY is read-only and cannot be written; "
+            "writable bits are TX_DONE, PARITY_ERR and OVERRUN_ERR"
+        )
+    if ISR_WRITE.search(code):
+        return (
+            "UART_ISR write is not an accepted form: use UART_ISR = (1U << NAME);, "
+            "UART_ISR |= (1U << NAME); or UART_ISR &= ~(1U << NAME); "
+            "with NAME TX_DONE, PARITY_ERR or OVERRUN_ERR"
+        )
+    if REG_DECL_OTHER.search(code):
+        return (
+            "a register read must be declared as uint8_t or uint32_t, "
+            "for example uint8_t d = UART_RDR;"
+        )
+    return "statement does not match an accepted form"
+
+
+def _scan_lines(lines):
+    inside = False
+    open_line = 0
+    has_handler = False
+    errors = []
+    first_reg = None
+    both_reported = False
+    for n, raw in enumerate(lines, start=1):
+        code = _strip_comments(raw).strip()
+        if not code:
+            continue
+        if "/*" in code or "*/" in code:
+            errors.append((n, BLOCK_COMMENT))
+            continue
+        if inside:
+            for m in REG_NAME.finditer(code):
+                name = m.group(1)
+                if first_reg is None:
+                    first_reg = name
+                elif name != first_reg and not both_reported:
+                    errors.append((n, BOTH_REGISTERS))
+                    both_reported = True
+        if HANDLER_EMPTY.fullmatch(code):
+            has_handler = True
+            if inside:
+                errors.append((n, NESTED))
+            continue
+        if HANDLER_OPEN.fullmatch(code):
+            if inside:
+                errors.append((n, NESTED))
+            inside = True
+            open_line = n
+            has_handler = True
+            continue
+        if code == "}":
+            if inside:
+                inside = False
+            else:
+                errors.append((n, STRAY_BRACE))
+            continue
+        if re.match(r"void\b", code):
+            has_handler = True
+            errors.append((n, HEADER_FORM))
+            continue
+        if not inside:
+            errors.append((n, OUTSIDE))
+            continue
+        if any(p.fullmatch(code) for p in (FORM_ASSIGN, FORM_OR, FORM_AND, FORM_DECL)):
+            continue
+        errors.append((n, _reject_message(code)))
+    if inside:
+        errors.append((open_line, NOT_CLOSED))
+    return has_handler, errors
+
+
+def _safe_line(value):
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+        return value
+    return 1
+
+
+def parse_user_snippet(snippet: str) -> list[Operation]:
+    """Return parse(snippet) unchanged, or raise ParseError with a 1-based line."""
+    candidates = []
+
+    # Step 1, parse.
+    try:
+        ops = parse(snippet)
+    except ParseError as e:
+        candidates.append((_safe_line(e.line), 0, e.message))
+        ops = None
+
+    # Step 2, line scan. splitlines() matches _tokenize so line numbers agree.
+    has_handler, scan_errors = _scan_lines(snippet.splitlines())
+    for line, message in scan_errors:
+        candidates.append((_safe_line(line), 2, message))
+
+    # Step 3, no handler.
+    if not has_handler:
+        candidates.append((1, 1, NO_HANDLER))
+
+    # Step 5, choose the earliest line; ties go to the lower priority.
+    if candidates:
+        line, _, message = min(candidates, key=lambda c: (c[0], c[1]))
+        raise ParseError(line, message)
+    return ops
