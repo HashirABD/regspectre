@@ -36,8 +36,10 @@ const mainStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-const headerStyle: CSSProperties = { gridArea: "header" };
-const codeStyle: CSSProperties = { gridArea: "code", minWidth: 0, minHeight: 0, overflow: "auto" };
+const headerStyle: CSSProperties = { gridArea: "header", maxHeight: "30vh", minHeight: 0, overflow: "auto" };
+const codeStyle: CSSProperties = { gridArea: "code", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" };
+const codePaneStyle: CSSProperties = { flex: "1 1 0", minHeight: 0, overflow: "auto" };
+const controlStyle: CSSProperties = { flex: "0 0 auto" };
 const resultsStyle: CSSProperties = { gridArea: "results", minWidth: 0, minHeight: 0, overflow: "auto" };
 const waveformStyle: CSSProperties = { gridArea: "waveform", height: WAVEFORM_HEIGHT };
 
@@ -154,19 +156,25 @@ export default function StudioPage() {
       </div>
 
       <div style={codeStyle}>
-        <CodePane
-          code={code}
-          onChange={(newCode) => setCode(newCode)}
-          demoName={demoName}
-          codeMessage={codeMessage}
-        />
-        <SnippetSelector names={DEMO_ORDER} selected={selected} onSelect={onSelect} />
-        <RunControl
-          enabled={canRun}
-          onRun={() => {
-            void onRun();
-          }}
-        />
+        <div style={codePaneStyle}>
+          <CodePane
+            code={code}
+            onChange={(newCode) => setCode(newCode)}
+            demoName={demoName}
+            codeMessage={codeMessage}
+          />
+        </div>
+        <div style={controlStyle}>
+          <SnippetSelector names={DEMO_ORDER} selected={selected} onSelect={onSelect} />
+        </div>
+        <div style={controlStyle}>
+          <RunControl
+            enabled={canRun}
+            onRun={() => {
+              void onRun();
+            }}
+          />
+        </div>
       </div>
 
       <div style={resultsStyle}>
