@@ -854,7 +854,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
 - [ ] 5. Phase 5: Next.js Studio with pure logic first, then components
 
-  - [ ] 5.1 Scaffold the Next.js app and the test tooling
+  - [x] 5.1 Scaffold the Next.js app and the test tooling
 
     - Files: `web/package.json`, `web/tsconfig.json`, `web/next.config.mjs`, `web/vitest.config.ts`, `web/app/layout.tsx`, `web/app/page.tsx`.
     - Requirements: 1, criteria 1 to 4.
@@ -873,7 +873,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: each step prints its `_OK` line.
 
-  - [ ] 5.2 Add config, types, and the exact message strings
+  - [x] 5.2 Add config, types, and the exact message strings
 
     - Files: `web/lib/config.ts`, `web/lib/types.ts`, `web/lib/messages.ts`.
     - Requirements: 7, criteria 6, 8, 9, 10; 9, criteria 3, 5, 8, 9 and 13; 10, criteria 1 to 5, 10 and 11; 1, criteria 3 and 6; 3, criteria 23 and 24; 5, criterion 15; 4, criterion 5.
@@ -891,7 +891,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: each `grep` prints the line that holds the exact text.
 
-  - [ ] 5.3 Implement the shared reader `web/lib/reader.ts` and its tests
+  - [x] 5.3 Implement the shared reader `web/lib/reader.ts` and its tests
 
     - Files: `web/lib/reader.ts` (new), `web/__tests__/reader.test.ts` (new).
     - Requirements: 8, criterion 6; 9, criterion 4; 6, criterion 7; 8, criterion 16.
@@ -906,7 +906,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all tests pass, including the 409 and 504 cases with other bodies.
 
-  - [ ] 5.4 Implement `countLines` and the demo derivation `web/lib/snippetState.ts` and its tests
+  - [x] 5.4 Implement `countLines` and the demo derivation `web/lib/snippetState.ts` and its tests
 
     - Files: `web/lib/snippetState.ts` (new), `web/__tests__/snippetState.test.ts` (new).
     - Requirements: 2, criteria 5, 6 and 7; 3, criterion 24.
@@ -922,7 +922,7 @@ Decisions D2 and D8 apply. Design sections 6.1 to 6.18, 7.4, 7.5. Requirements 1
 
       Expected: all tests pass.
 
-  - [ ] 5.5 Implement the 32-cell model `web/lib/registerCells.ts` and its tests
+  - [x] 5.5 Implement the 32-cell model `web/lib/registerCells.ts` and its tests
 
     - Files: `web/lib/registerCells.ts` (new), `web/__tests__/registerCells.test.ts` (new).
     - Requirements: 5, criteria 1 to 16.
