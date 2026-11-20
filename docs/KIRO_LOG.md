@@ -369,3 +369,18 @@ Not proven: only one error type (unknown bit) was tried. Other error paths, erro
   - Gemini mistake 3: Step 76 expectation wrote 10 files when the Step 76 prompt listed 11 files.
   - Gemini mistake 4: carried forward the inflated 39/50 score without evidence until Claude's independent review lowered the ceiling to 37/50.
 - **Credits:** 14.85 Kiro credits (Kiro estimate).
+## studio_ui design.md Fix A & Fix B (Steps 80-87)
+
+- **Measured facts (Step 80 & Step 84):** `pytest -q tests/` passed 100 tests in 1.29s (no `pytest.ini`/`pyproject.toml`/`setup.cfg`). Cold `make clean` + 4-snippet `python3 -m engine.demo run` took 1.85s (`exit=0`); warm run took 1.60s (`exit=0`). `httpx` is not yet installed in `~/.venv`.
+- **Locked decisions (Step 81):**
+  - **Replace:** Retire `tests/demo_print.py` and use `tests/snippet_run.py` as the single shared replay path for CLI and Backend (O3, O4).
+  - **Separate:** Implement local `127.0.0.1` `studio_ui` first per Requirement 6; schedule Docker and public cloud deployment in a separate Deployment spec (D8).
+- **Kiro Fix A (Step 82, 12.65 est. credits, 7m 28s):** Updated `.kiro/specs/studio_ui/design.md` only: shared 4-step `count_lines`/`countLines` rule (U+2028 = 1 line), HTTP 409/504 other-body `CANNOT_READ` mappings, `_scan_lines` `REG_NAME` check for `BOTH_REGISTERS`, fenced Python raw-string regex block (verified via `exec()` on 4/4 demo snippets and 4/4 negative cases), D8 + O1-O5 updates, `rtl/uart_ctrl.sv` citations (lines 26-28, 47), and `httpx` notes.
+- **Kiro Fix B (Step 85, 5.57 est. credits, 2m 47s):** Updated `.kiro/specs/studio_ui/design.md` only after independent review: documented intentional `U+2028` divergence between `splitlines()` in `_scan_lines`/`c_parser.py:84` and `count_lines` (with Section 7.1 test case), added missing blank line before Section 5.4 Step 2, fixed `len(text.split("\n"))`, and updated O5 wording to "Mitigated on paper, pending Makefile change".
+- **Disk & raw verification (Steps 86-87):** `design.md` is 949 lines, 70,643 bytes, UTF-8 no BOM, `CR=0`, trailing LF, 0 non-ASCII. Verified `FORM_ASSIGN`/`FORM_OR` on lines 129-130, `rtl/uart_ctrl.sv` lines 26-28 & 47, 0 `| |` double-pipe artifacts, and clean Section 7.1 table rows.
+- **Process / Coach mistakes logged honestly:**
+  1. Earlier labeled eyeball snippet matching and RTL reading as "proven" before running commands.
+  2. Blamed Kiro for missing `httpx` in `~/.venv` and omitted `rtl/uart_ctrl.sv` from Step 76's read list.
+  3. Phrased Step 81 decisions too technically, causing confusion over whether Decisions 1 and 2 were mutually exclusive.
+  4. Omitted `--no-pager` on `git diff` in Step 83 (paused terminal in `less`).
+  5. Sent summary instead of raw terminal output in the Step 83 review packet, called `len(...)`/U+2028 "no functional errors", and used a leading "ready to commit?" question.
