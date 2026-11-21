@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import "./results.css";
+import "./register-map.css";
+import "./register-map-table.css";
+import "./grid-timeline.css";
+import { BugReportCards } from "../components/BugReportCards";
 import { CodePane } from "../components/CodePane";
+import { ExampleCards } from "../components/ExampleCards";
+import { RegisterMap } from "../components/RegisterMap";
 import { Disclaimers } from "../components/Disclaimers";
 import { Message } from "../components/Message";
 import { RegisterArray } from "../components/RegisterArray";
@@ -10,6 +17,7 @@ import { RunControl } from "../components/RunControl";
 import { SnippetSelector } from "../components/SnippetSelector";
 import { ViolationList } from "../components/ViolationList";
 import { WaveformPlaceholder } from "../components/WaveformPlaceholder";
+import { StatusBar, type ConnectionState } from "../components/StatusBar";
 import { postRun } from "../lib/api";
 import { RECORDED_UNAVAILABLE, SOURCES_UNAVAILABLE, UNREACHABLE_USER } from "../lib/messages";
 import { startStatusPoller } from "../lib/poller";
@@ -26,20 +34,21 @@ const WAVEFORM_HEIGHT = 200;
 
 const mainStyle: CSSProperties = {
   display: "grid",
-  gridTemplateAreas: '"header header" "code results" "waveform waveform"',
-  gridTemplateRows: `auto minmax(0, 1fr) ${WAVEFORM_HEIGHT}px`,
+  gridTemplateAreas: '"status status" "header header" "code results" "waveform waveform"',
+  gridTemplateRows: `auto auto minmax(0, 1fr) ${WAVEFORM_HEIGHT}px`,
   gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
   gap: 16,
-  padding: 16,
+  padding: "0 16px 16px",
   height: "100vh",
   boxSizing: "border-box",
   overflow: "hidden",
 };
 
-const headerStyle: CSSProperties = { gridArea: "header", maxHeight: "30vh", minHeight: 0, overflow: "auto" };
+const statusStyle: CSSProperties = { gridArea: "status", margin: "0 -16px" };
+const headerStyle: CSSProperties = { gridArea: "header", maxHeight: "116px", minHeight: 0, overflow: "auto" };
 const codeStyle: CSSProperties = { gridArea: "code", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" };
 const codePaneStyle: CSSProperties = { flex: "1 1 0", minHeight: 0, overflow: "auto" };
-const controlStyle: CSSProperties = { flex: "0 0 auto" };
+const toolbarStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "0 0 auto" };
 const resultsStyle: CSSProperties = { gridArea: "results", minWidth: 0, minHeight: 0, overflow: "auto" };
 const waveformStyle: CSSProperties = { gridArea: "waveform", height: WAVEFORM_HEIGHT };
 
@@ -90,7 +99,18 @@ export default function StudioPage() {
   const codeMessage = sourcesReady && selectedSource === null ? SOURCES_UNAVAILABLE : null;
   const canRun =
     !pending && (backend.kind === "unreachable" || (backend.kind === "reachable" && !backend.busy));
+  // The pill says Live only when the backend answered the latest status request, and Recorded only while Recorded_Output is shown.
+  const connection: ConnectionState =
+    backend.kind === "unknown"
+      ? "checking"
+      : backend.kind === "reachable"
+        ? "live"
+        : shown.kind === "recorded"
+          ? "recorded"
+          : "offline";
   const cells = buildRegisterCells(register, shown);
+  const violations = shown.kind === "live" || shown.kind === "recorded" ? shown.violations : [];
+  const shownReplayed = shown.kind === "live" || shown.kind === "recorded" ? shown.replayed : null;
   const showReplayedNotes =
     (shown.kind === "live" || shown.kind === "recorded") && shown.replayed !== null;
 
@@ -151,6 +171,9 @@ export default function StudioPage() {
 
   return (
     <main style={mainStyle}>
+      <div style={statusStyle}>
+        <StatusBar connection={connection} current="studio" />
+      </div>
       <div style={headerStyle}>
         <Disclaimers showReplayedNotes={showReplayedNotes} />
       </div>
@@ -164,10 +187,8 @@ export default function StudioPage() {
             codeMessage={codeMessage}
           />
         </div>
-        <div style={controlStyle}>
+        <div style={toolbarStyle}>
           <SnippetSelector names={DEMO_ORDER} selected={selected} onSelect={onSelect} />
-        </div>
-        <div style={controlStyle}>
           <RunControl
             enabled={canRun}
             onRun={() => {
@@ -178,17 +199,21 @@ export default function StudioPage() {
       </div>
 
       <div style={resultsStyle}>
+        {shown.kind === "empty" ? <ExampleCards onSelect={onSelect} /> : null}
+        {violations.length > 0 ? <BugReportCards violations={violations} /> : null}
+        <RegisterMap register={register} shown={shown} onSelectRegister={setRegister} />
         <RegisterArray
           register={register}
           onRegisterChange={(next) => setRegister(next)}
           cells={cells}
+          replayed={shownReplayed}
         />
         <ViolationList shown={shown} />
         <Message text={shown.kind === "message" ? shown.text : null} />
       </div>
 
       <div style={waveformStyle}>
-        <WaveformPlaceholder />
+        <WaveformPlaceholder register={register} shown={shown} />
       </div>
     </main>
   );

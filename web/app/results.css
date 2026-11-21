@@ -1,0 +1,74 @@
+/* Part B: results pane cards and value pills */
+.example-card-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.example-card {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  color: var(--text);
+}
+
+.example-card:hover {
+  border-color: var(--accent);
+}
+
+.example-card-description {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.bug-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.bug-card {
+  display: grid;
+  gap: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--bug);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.bug-card-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.value-pill {
+  font-family: var(--font-code), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.value-expected {
+  color: var(--pass);
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.value-actual {
+  color: var(--bug);
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.pill-bug {
+  color: var(--bug);
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.1);
+}

@@ -1,0 +1,37 @@
+/* Part B: register map table */
+.register-map {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.register-map th,
+.register-map td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.register-map th {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.register-map tbody tr {
+  cursor: pointer;
+}
+
+.register-map tbody tr:hover {
+  background: var(--surface-raised);
+}
+
+.register-map tbody tr[aria-selected="true"] {
+  background: var(--surface-raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.register-map .mono {
+  font-family: var(--font-code), ui-monospace, monospace;
+}
